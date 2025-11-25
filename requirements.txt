@@ -1,0 +1,5 @@
+streamlit>=1.28.0
+rdflib>=7.0.0
+owlrl>=6.0.2
+networkx>=3.0
+pyvis>=0.3.2
