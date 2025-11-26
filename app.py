@@ -1630,7 +1630,8 @@ def render_visualization():
                     title += f"\nComment: {cls['comment'][:100]}"
 
                 net.add_node(cls["name"], label=label, title=title,
-                           color="#4CAF50", shape="box", size=25)
+                           color="#4CAF50", shape="box", size=25,
+                           font={"color": "white"})
 
             # Add class hierarchy edges
             for cls in classes:
@@ -1650,7 +1651,8 @@ def render_visualization():
                     title += f"\nRange: {prop['range']}"
 
                 net.add_node(f"prop_{prop['name']}", label=label, title=title,
-                           color="#2196F3", shape="ellipse", size=15)
+                           color="#2196F3", shape="ellipse", size=15,
+                           font={"color": "white"})
 
                 # Connect to domain and range if they exist
                 if prop["domain"] and show_classes:
@@ -1669,7 +1671,8 @@ def render_visualization():
                     title += f"\nType: {', '.join(ind['classes'])}"
 
                 net.add_node(f"ind_{ind['name']}", label=label, title=title,
-                           color="#FF9800", shape="dot", size=20)
+                           color="#FF9800", shape="dot", size=20,
+                           font={"color": "white"})
 
                 # Connect to classes
                 if show_classes:
