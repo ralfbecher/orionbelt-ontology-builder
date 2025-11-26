@@ -51,9 +51,15 @@ st.markdown("""
     /* Reduce top margin/padding */
     .block-container {
         padding-top: 2rem !important;
+        padding-bottom: 0.5rem !important;
     }
     .stMainBlockContainer {
         padding-top: 2rem !important;
+        padding-bottom: 0.5rem !important;
+    }
+    /* Reduce iframe container margins */
+    iframe {
+        margin-bottom: 0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
