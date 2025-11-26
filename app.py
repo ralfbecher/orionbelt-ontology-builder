@@ -1598,7 +1598,7 @@ def render_visualization():
         with col3:
             show_individuals = st.checkbox("Individuals", value=True)
         with col4:
-            height = st.slider("Height", 400, 800, 600, label_visibility="collapsed")
+            height = st.slider("Height", 500, 900, 700, label_visibility="collapsed")
         with col5:
             physics = st.checkbox("Physics", value=True)
 
@@ -1628,8 +1628,9 @@ def render_visualization():
                     title += f"\nComment: {cls['comment'][:100]}"
 
                 net.add_node(cls["name"], label=label, title=title,
-                           color="#4CAF50", shape="box", size=25,
-                           font={"color": "white"})
+                           color={"background": "#4CAF50", "border": "#388E3C"},
+                           shape="box", size=25,
+                           font="14px arial white")
 
             # Add class hierarchy edges
             for cls in classes:
@@ -1649,8 +1650,9 @@ def render_visualization():
                     title += f"\nRange: {prop['range']}"
 
                 net.add_node(f"prop_{prop['name']}", label=label, title=title,
-                           color="#2196F3", shape="ellipse", size=15,
-                           font={"color": "white"})
+                           color={"background": "#2196F3", "border": "#1976D2"},
+                           shape="ellipse", size=15,
+                           font="12px arial white")
 
                 # Connect to domain and range if they exist
                 if prop["domain"] and show_classes:
@@ -1669,8 +1671,9 @@ def render_visualization():
                     title += f"\nType: {', '.join(ind['classes'])}"
 
                 net.add_node(f"ind_{ind['name']}", label=label, title=title,
-                           color="#FF9800", shape="dot", size=20,
-                           font={"color": "white"})
+                           color={"background": "#FF9800", "border": "#F57C00"},
+                           shape="dot", size=20,
+                           font="12px arial white")
 
                 # Connect to classes
                 if show_classes:
