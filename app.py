@@ -232,7 +232,7 @@ def render_classes():
                     "Children": ", ".join(c["children"]),
                     "Comment": c["comment"][:50] + "..." if len(c["comment"]) > 50 else c["comment"]
                 })
-            st.dataframe(class_data, width="100%")
+            st.dataframe(class_data, width="stretch")
 
     with tab2:
         st.subheader("Add New Class")
