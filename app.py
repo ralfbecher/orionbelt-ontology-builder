@@ -1611,7 +1611,7 @@ def render_visualization():
         with col3:
             show_individuals = st.checkbox("Individuals", value=True)
         with col4:
-            height = st.slider("Height", 500, 900, 700, label_visibility="collapsed")
+            height = st.slider("Height", 600, 1000, 800, label_visibility="collapsed")
         with col5:
             physics = st.checkbox("Physics", value=True)
 
@@ -1630,13 +1630,24 @@ def render_visualization():
         else:
             net.toggle_physics(False)
 
-        # Set default node options with light grey font
+        # Set default node and edge options
         net.set_options('''
         var options = {
             "nodes": {
                 "font": {
                     "color": "#e0e0e0",
                     "size": 14
+                }
+            },
+            "edges": {
+                "font": {
+                    "color": "#666666",
+                    "size": 11,
+                    "align": "middle",
+                    "background": "white"
+                },
+                "smooth": {
+                    "type": "continuous"
                 }
             }
         }
