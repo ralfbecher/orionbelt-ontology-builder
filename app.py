@@ -50,13 +50,10 @@ st.markdown("""
     }
     /* Reduce top margin/padding */
     .block-container {
-        padding-top: 1rem !important;
-    }
-    header[data-testid="stHeader"] {
-        height: 2.5rem !important;
+        padding-top: 2rem !important;
     }
     .stMainBlockContainer {
-        padding-top: 1rem !important;
+        padding-top: 2rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
