@@ -92,6 +92,8 @@ def render_dashboard():
 
     with col2:
         version = st.text_input("Version", value=metadata.get("version", ""))
+        version_iri = st.text_input("Version IRI", value=metadata.get("version_iri", ""),
+                                    help="Optional IRI identifying this version of the ontology")
         creator = st.text_input("Creator", value=metadata.get("creator", ""))
 
         if st.button("Update Metadata"):
@@ -101,9 +103,32 @@ def render_dashboard():
                 show_message(f"Base URI updated to: {ont.base_uri}", "success")
 
             ont.set_ontology_metadata(title=title, description=description,
-                                      version=version, creator=creator)
+                                      version=version, creator=creator,
+                                      version_iri=version_iri if version_iri else None)
             show_message("Metadata updated successfully!", "success")
             st.rerun()
+
+    # Imports section
+    st.subheader("Ontology Imports")
+    imports = ont.get_imports()
+
+    if imports:
+        for imp in imports:
+            col1, col2 = st.columns([5, 1])
+            with col1:
+                st.code(imp)
+            with col2:
+                if st.button("Remove", key=f"rm_import_{imp}"):
+                    ont.remove_import(imp)
+                    st.rerun()
+
+    with st.expander("Add Import"):
+        new_import = st.text_input("Import URI", placeholder="http://example.org/other-ontology")
+        if st.button("Add Import"):
+            if new_import:
+                ont.add_import(new_import)
+                show_message(f"Import added: {new_import}", "success")
+                st.rerun()
 
     st.divider()
 
@@ -394,10 +419,13 @@ def render_properties():
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 functional = st.checkbox("Functional")
+                asymmetric = st.checkbox("Asymmetric")
             with col2:
                 inverse_functional = st.checkbox("Inverse Functional")
+                reflexive = st.checkbox("Reflexive")
             with col3:
                 transitive = st.checkbox("Transitive")
+                irreflexive = st.checkbox("Irreflexive")
             with col4:
                 symmetric = st.checkbox("Symmetric")
 
@@ -420,6 +448,9 @@ def render_properties():
                         inverse_functional=inverse_functional,
                         transitive=transitive,
                         symmetric=symmetric,
+                        asymmetric=asymmetric,
+                        reflexive=reflexive,
+                        irreflexive=irreflexive,
                         inverse_of=inverse_of if inverse_of != "None" else None
                     )
                     show_message(f"Object property '{name}' added!", "success")
@@ -1045,6 +1076,221 @@ def render_import_export():
                     st.rerun()
 
 
+def render_advanced():
+    """Render the advanced OWL features page."""
+    st.header("Advanced OWL Features")
+
+    ont = st.session_state.ontology
+    classes = ont.get_classes()
+    class_names = [c["name"] for c in classes]
+    object_props = ont.get_object_properties()
+    data_props = ont.get_data_properties()
+    all_prop_names = [p["name"] for p in object_props] + [p["name"] for p in data_props]
+    individuals = ont.get_individuals()
+    ind_names = [i["name"] for i in individuals]
+
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "Class Expressions", "Property Chains", "Disjoint Union", "All Different", "Has Key"
+    ])
+
+    with tab1:
+        st.subheader("Class Expressions")
+        st.caption("Define complex class expressions using set operations")
+
+        # View existing expressions
+        expressions = ont.get_class_expressions()
+        if expressions:
+            st.write("**Existing Expressions:**")
+            for expr in expressions:
+                st.write(f"- **{expr['class']}** {expr['type']}: {', '.join(expr['members'])}")
+        else:
+            st.info("No class expressions defined yet.")
+
+        st.divider()
+
+        if len(class_names) < 2:
+            st.warning("Need at least 2 classes to create expressions.")
+        else:
+            with st.form("add_class_expression_form"):
+                target_class = st.selectbox("Target Class", options=class_names,
+                    help="The class to define with this expression")
+
+                expr_type = st.selectbox("Expression Type", options=[
+                    "unionOf", "intersectionOf", "complementOf", "oneOf"
+                ])
+
+                st.write("**Select members:**")
+                if expr_type == "complementOf":
+                    complement_class = st.selectbox("Complement of Class", options=class_names)
+                    selected_classes = [complement_class] if complement_class else []
+                    selected_individuals = []
+                elif expr_type == "oneOf":
+                    selected_individuals = st.multiselect("Individuals (enumeration)",
+                        options=ind_names)
+                    selected_classes = []
+                else:
+                    selected_classes = st.multiselect("Classes", options=class_names)
+                    selected_individuals = []
+
+                submitted = st.form_submit_button("Add Expression")
+                if submitted:
+                    if expr_type == "oneOf" and selected_individuals:
+                        ont.add_class_expression(target_class, expr_type,
+                            individuals=selected_individuals)
+                        show_message(f"Expression added to {target_class}", "success")
+                        st.rerun()
+                    elif selected_classes:
+                        ont.add_class_expression(target_class, expr_type,
+                            classes=selected_classes)
+                        show_message(f"Expression added to {target_class}", "success")
+                        st.rerun()
+                    else:
+                        show_message("Please select at least one member!", "error")
+
+    with tab2:
+        st.subheader("Property Chains")
+        st.caption("Define property chain axioms (e.g., hasParent o hasBrother = hasUncle)")
+
+        # View existing chains
+        chains = ont.get_property_chains()
+        if chains:
+            st.write("**Existing Property Chains:**")
+            for chain in chains:
+                st.write(f"- **{chain['property']}** = {' o '.join(chain['chain'])}")
+        else:
+            st.info("No property chains defined yet.")
+
+        st.divider()
+
+        obj_prop_names = [p["name"] for p in object_props]
+        if len(obj_prop_names) < 2:
+            st.warning("Need at least 2 object properties to create chains.")
+        else:
+            with st.form("add_property_chain_form"):
+                result_prop = st.selectbox("Result Property",
+                    options=obj_prop_names,
+                    help="The property that results from following the chain")
+
+                chain_props = st.multiselect("Chain Properties (in order)",
+                    options=obj_prop_names,
+                    help="Select properties in the order they should be followed")
+
+                submitted = st.form_submit_button("Add Property Chain")
+                if submitted:
+                    if len(chain_props) < 2:
+                        show_message("Chain must have at least 2 properties!", "error")
+                    else:
+                        ont.add_property_chain(result_prop, chain_props)
+                        show_message(f"Property chain added for {result_prop}", "success")
+                        st.rerun()
+
+    with tab3:
+        st.subheader("Disjoint Union")
+        st.caption("Define a class as the disjoint union of other classes")
+
+        # View existing disjoint unions
+        unions = ont.get_disjoint_unions()
+        if unions:
+            st.write("**Existing Disjoint Unions:**")
+            for union in unions:
+                st.write(f"- **{union['class']}** = disjointUnionOf({', '.join(union['members'])})")
+        else:
+            st.info("No disjoint unions defined yet.")
+
+        st.divider()
+
+        if len(class_names) < 3:
+            st.warning("Need at least 3 classes (1 parent + 2 children) for disjoint union.")
+        else:
+            with st.form("add_disjoint_union_form"):
+                parent_class = st.selectbox("Parent Class",
+                    options=class_names,
+                    help="The class that is the disjoint union")
+
+                member_classes = st.multiselect("Member Classes",
+                    options=class_names,
+                    help="Classes that make up the disjoint union")
+
+                submitted = st.form_submit_button("Add Disjoint Union")
+                if submitted:
+                    if len(member_classes) < 2:
+                        show_message("Need at least 2 member classes!", "error")
+                    elif parent_class in member_classes:
+                        show_message("Parent class cannot be a member!", "error")
+                    else:
+                        ont.add_disjoint_union(parent_class, member_classes)
+                        show_message(f"Disjoint union added for {parent_class}", "success")
+                        st.rerun()
+
+    with tab4:
+        st.subheader("All Different")
+        st.caption("Declare that a set of individuals are all mutually different")
+
+        # View existing AllDifferent declarations
+        all_diffs = ont.get_all_different()
+        if all_diffs:
+            st.write("**Existing AllDifferent Declarations:**")
+            for i, diff in enumerate(all_diffs):
+                st.write(f"- AllDifferent: {', '.join(diff)}")
+        else:
+            st.info("No AllDifferent declarations yet.")
+
+        st.divider()
+
+        if len(ind_names) < 2:
+            st.warning("Need at least 2 individuals for AllDifferent.")
+        else:
+            with st.form("add_all_different_form"):
+                selected_inds = st.multiselect("Select Individuals",
+                    options=ind_names,
+                    help="All selected individuals will be declared mutually different")
+
+                submitted = st.form_submit_button("Add AllDifferent")
+                if submitted:
+                    if len(selected_inds) < 2:
+                        show_message("Select at least 2 individuals!", "error")
+                    else:
+                        ont.add_all_different(selected_inds)
+                        show_message("AllDifferent declaration added!", "success")
+                        st.rerun()
+
+    with tab5:
+        st.subheader("Has Key")
+        st.caption("Define key properties that uniquely identify instances of a class")
+
+        # View existing hasKey declarations
+        keys = ont.get_has_keys()
+        if keys:
+            st.write("**Existing hasKey Declarations:**")
+            for key in keys:
+                st.write(f"- **{key['class']}** hasKey: {', '.join(key['properties'])}")
+        else:
+            st.info("No hasKey declarations yet.")
+
+        st.divider()
+
+        if not class_names:
+            st.warning("Need at least 1 class.")
+        elif not all_prop_names:
+            st.warning("Need at least 1 property.")
+        else:
+            with st.form("add_has_key_form"):
+                target_class = st.selectbox("Class", options=class_names)
+
+                key_props = st.multiselect("Key Properties",
+                    options=all_prop_names,
+                    help="Properties that together uniquely identify instances")
+
+                submitted = st.form_submit_button("Add hasKey")
+                if submitted:
+                    if not key_props:
+                        show_message("Select at least 1 property!", "error")
+                    else:
+                        ont.add_has_key(target_class, key_props)
+                        show_message(f"hasKey added for {target_class}", "success")
+                        st.rerun()
+
+
 def render_validation():
     """Render the validation and reasoning page."""
     st.header("Validation & Reasoning")
@@ -1191,6 +1437,7 @@ def main():
         "Individuals": render_individuals,
         "Relations": render_relations,
         "Restrictions": render_restrictions,
+        "Advanced": render_advanced,
         "Annotations": render_annotations,
         "Import / Export": render_import_export,
         "Validation": render_validation,

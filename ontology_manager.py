@@ -62,7 +62,8 @@ class OntologyManager:
         self.graph.add((self.ontology_uri, RDF.type, OWL.Ontology))
 
     def set_ontology_metadata(self, title: str = None, description: str = None,
-                              version: str = None, creator: str = None):
+                              version: str = None, creator: str = None,
+                              version_iri: str = None):
         """Set ontology-level metadata."""
         if title:
             self.graph.set((self.ontology_uri, DCTERMS.title, Literal(title)))
@@ -72,12 +73,27 @@ class OntologyManager:
             self.graph.set((self.ontology_uri, OWL.versionInfo, Literal(version)))
         if creator:
             self.graph.set((self.ontology_uri, DCTERMS.creator, Literal(creator)))
+        if version_iri:
+            self.graph.set((self.ontology_uri, OWL.versionIRI, URIRef(version_iri)))
+
+    def add_import(self, import_uri: str):
+        """Add an owl:imports declaration."""
+        self.graph.add((self.ontology_uri, OWL.imports, URIRef(import_uri)))
+
+    def remove_import(self, import_uri: str):
+        """Remove an owl:imports declaration."""
+        self.graph.remove((self.ontology_uri, OWL.imports, URIRef(import_uri)))
+
+    def get_imports(self) -> List[str]:
+        """Get all owl:imports URIs."""
+        return [str(o) for o in self.graph.objects(self.ontology_uri, OWL.imports)]
 
     def get_ontology_metadata(self) -> Dict[str, str]:
         """Get ontology-level metadata."""
         metadata = {}
         for pred, key in [(DCTERMS.title, "title"), (DCTERMS.description, "description"),
-                          (OWL.versionInfo, "version"), (DCTERMS.creator, "creator")]:
+                          (OWL.versionInfo, "version"), (DCTERMS.creator, "creator"),
+                          (OWL.versionIRI, "version_iri")]:
             value = self.graph.value(self.ontology_uri, pred)
             if value:
                 metadata[key] = str(value)
@@ -243,7 +259,8 @@ class OntologyManager:
                             label: str = None, comment: str = None,
                             functional: bool = False, inverse_functional: bool = False,
                             transitive: bool = False, symmetric: bool = False,
-                            inverse_of: str = None) -> URIRef:
+                            asymmetric: bool = False, reflexive: bool = False,
+                            irreflexive: bool = False, inverse_of: str = None) -> URIRef:
         """Add a new object property."""
         prop_uri = self._uri(name)
         self.graph.add((prop_uri, RDF.type, OWL.ObjectProperty))
@@ -266,6 +283,12 @@ class OntologyManager:
             self.graph.add((prop_uri, RDF.type, OWL.TransitiveProperty))
         if symmetric:
             self.graph.add((prop_uri, RDF.type, OWL.SymmetricProperty))
+        if asymmetric:
+            self.graph.add((prop_uri, RDF.type, OWL.AsymmetricProperty))
+        if reflexive:
+            self.graph.add((prop_uri, RDF.type, OWL.ReflexiveProperty))
+        if irreflexive:
+            self.graph.add((prop_uri, RDF.type, OWL.IrreflexiveProperty))
         if inverse_of:
             self.graph.add((prop_uri, OWL.inverseOf, self._uri(inverse_of)))
 
@@ -362,6 +385,12 @@ class OntologyManager:
                 prop_info["characteristics"].append("Transitive")
             if (prop_uri, RDF.type, OWL.SymmetricProperty) in self.graph:
                 prop_info["characteristics"].append("Symmetric")
+            if (prop_uri, RDF.type, OWL.AsymmetricProperty) in self.graph:
+                prop_info["characteristics"].append("Asymmetric")
+            if (prop_uri, RDF.type, OWL.ReflexiveProperty) in self.graph:
+                prop_info["characteristics"].append("Reflexive")
+            if (prop_uri, RDF.type, OWL.IrreflexiveProperty) in self.graph:
+                prop_info["characteristics"].append("Irreflexive")
 
             inverse = self.graph.value(prop_uri, OWL.inverseOf)
             if inverse:
@@ -685,6 +714,7 @@ class OntologyManager:
         "subPropertyOf": RDFS.subPropertyOf,
         "equivalentProperty": OWL.equivalentProperty,
         "inverseOf": OWL.inverseOf,
+        "propertyDisjointWith": OWL.propertyDisjointWith,
     }
 
     # Individual relation types
@@ -796,6 +826,166 @@ class OntologyManager:
             "property_relations": self.get_property_relations(),
             "individual_relations": self.get_individual_relations()
         }
+
+    # ==================== ADVANCED OWL FEATURES ====================
+
+    def add_property_chain(self, property_name: str, chain_properties: List[str]):
+        """Add a property chain axiom (owl:propertyChainAxiom)."""
+        prop_uri = self._uri(property_name)
+        chain_uris = [self._uri(p) for p in chain_properties]
+
+        # Create RDF list for the chain
+        chain_list = BNode()
+        Collection(self.graph, chain_list, chain_uris)
+        self.graph.add((prop_uri, OWL.propertyChainAxiom, chain_list))
+
+    def get_property_chains(self) -> List[Dict[str, Any]]:
+        """Get all property chain axioms."""
+        chains = []
+        for prop, chain_list in self.graph.subject_objects(OWL.propertyChainAxiom):
+            if isinstance(prop, URIRef):
+                chain = list(Collection(self.graph, chain_list))
+                chains.append({
+                    "property": self._local_name(prop),
+                    "chain": [self._local_name(p) for p in chain if isinstance(p, URIRef)]
+                })
+        return chains
+
+    def add_class_expression(self, class_name: str, expression_type: str,
+                            classes: List[str] = None, individuals: List[str] = None):
+        """Add a class expression (unionOf, intersectionOf, complementOf, oneOf)."""
+        class_uri = self._uri(class_name)
+
+        if expression_type == "complementOf" and classes:
+            # complementOf takes a single class
+            self.graph.add((class_uri, OWL.complementOf, self._uri(classes[0])))
+
+        elif expression_type == "oneOf" and individuals:
+            # oneOf takes a list of individuals
+            ind_uris = [self._uri(i) for i in individuals]
+            list_node = BNode()
+            Collection(self.graph, list_node, ind_uris)
+            self.graph.add((class_uri, OWL.oneOf, list_node))
+
+        elif expression_type in ["unionOf", "intersectionOf"] and classes:
+            # unionOf and intersectionOf take a list of classes
+            class_uris = [self._uri(c) for c in classes]
+            list_node = BNode()
+            Collection(self.graph, list_node, class_uris)
+            if expression_type == "unionOf":
+                self.graph.add((class_uri, OWL.unionOf, list_node))
+            else:
+                self.graph.add((class_uri, OWL.intersectionOf, list_node))
+
+    def get_class_expressions(self, class_name: str = None) -> List[Dict[str, Any]]:
+        """Get class expressions for a class or all classes."""
+        expressions = []
+
+        expression_types = [
+            (OWL.unionOf, "unionOf"),
+            (OWL.intersectionOf, "intersectionOf"),
+            (OWL.complementOf, "complementOf"),
+            (OWL.oneOf, "oneOf")
+        ]
+
+        for pred, expr_type in expression_types:
+            for subj, obj in self.graph.subject_objects(pred):
+                if isinstance(subj, URIRef):
+                    subj_name = self._local_name(subj)
+                    if class_name and subj_name != class_name:
+                        continue
+
+                    expr = {"class": subj_name, "type": expr_type, "members": []}
+
+                    if expr_type == "complementOf":
+                        if isinstance(obj, URIRef):
+                            expr["members"] = [self._local_name(obj)]
+                    else:
+                        # It's a list
+                        try:
+                            members = list(Collection(self.graph, obj))
+                            expr["members"] = [self._local_name(m) for m in members if isinstance(m, URIRef)]
+                        except:
+                            pass
+
+                    if expr["members"]:
+                        expressions.append(expr)
+
+        return expressions
+
+    def add_all_different(self, individuals: List[str]):
+        """Add an owl:AllDifferent declaration for a list of individuals."""
+        all_diff = BNode()
+        self.graph.add((all_diff, RDF.type, OWL.AllDifferent))
+
+        ind_uris = [self._uri(i) for i in individuals]
+        list_node = BNode()
+        Collection(self.graph, list_node, ind_uris)
+        self.graph.add((all_diff, OWL.distinctMembers, list_node))
+
+    def get_all_different(self) -> List[List[str]]:
+        """Get all owl:AllDifferent declarations."""
+        all_diffs = []
+        for all_diff in self.graph.subjects(RDF.type, OWL.AllDifferent):
+            members_list = self.graph.value(all_diff, OWL.distinctMembers)
+            if members_list:
+                try:
+                    members = list(Collection(self.graph, members_list))
+                    all_diffs.append([self._local_name(m) for m in members if isinstance(m, URIRef)])
+                except:
+                    pass
+        return all_diffs
+
+    def add_has_key(self, class_name: str, properties: List[str]):
+        """Add an owl:hasKey axiom to a class."""
+        class_uri = self._uri(class_name)
+        prop_uris = [self._uri(p) for p in properties]
+
+        list_node = BNode()
+        Collection(self.graph, list_node, prop_uris)
+        self.graph.add((class_uri, OWL.hasKey, list_node))
+
+    def get_has_keys(self, class_name: str = None) -> List[Dict[str, Any]]:
+        """Get owl:hasKey axioms."""
+        keys = []
+        for subj, key_list in self.graph.subject_objects(OWL.hasKey):
+            if isinstance(subj, URIRef):
+                subj_name = self._local_name(subj)
+                if class_name and subj_name != class_name:
+                    continue
+                try:
+                    props = list(Collection(self.graph, key_list))
+                    keys.append({
+                        "class": subj_name,
+                        "properties": [self._local_name(p) for p in props if isinstance(p, URIRef)]
+                    })
+                except:
+                    pass
+        return keys
+
+    def add_disjoint_union(self, class_name: str, disjoint_classes: List[str]):
+        """Add an owl:disjointUnionOf axiom (class is disjoint union of listed classes)."""
+        class_uri = self._uri(class_name)
+        class_uris = [self._uri(c) for c in disjoint_classes]
+
+        list_node = BNode()
+        Collection(self.graph, list_node, class_uris)
+        self.graph.add((class_uri, OWL.disjointUnionOf, list_node))
+
+    def get_disjoint_unions(self) -> List[Dict[str, Any]]:
+        """Get all owl:disjointUnionOf declarations."""
+        unions = []
+        for subj, union_list in self.graph.subject_objects(OWL.disjointUnionOf):
+            if isinstance(subj, URIRef):
+                try:
+                    members = list(Collection(self.graph, union_list))
+                    unions.append({
+                        "class": self._local_name(subj),
+                        "members": [self._local_name(m) for m in members if isinstance(m, URIRef)]
+                    })
+                except:
+                    pass
+        return unions
 
     # ==================== IMPORT/EXPORT OPERATIONS ====================
 
