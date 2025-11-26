@@ -58,6 +58,8 @@ def init_session_state():
         st.session_state.ontology = OntologyManager()
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    if "flash_message" not in st.session_state:
+        st.session_state.flash_message = None
 
 
 def show_message(message: str, type: str = "info"):
@@ -70,6 +72,19 @@ def show_message(message: str, type: str = "info"):
         st.error(message)
     else:
         st.info(message)
+
+
+def set_flash_message(message: str, type: str = "info"):
+    """Set a flash message to be displayed after rerun."""
+    st.session_state.flash_message = {"message": message, "type": type}
+
+
+def display_flash_message():
+    """Display and clear any pending flash message."""
+    if st.session_state.get("flash_message"):
+        msg = st.session_state.flash_message
+        show_message(msg["message"], msg["type"])
+        st.session_state.flash_message = None
 
 
 def render_dashboard():
@@ -1152,6 +1167,9 @@ def render_import_export():
     """Render the import/export page."""
     st.header("Import / Export")
 
+    # Display any flash messages from previous actions
+    display_flash_message()
+
     ont = st.session_state.ontology
 
     tab1, tab2, tab3 = st.tabs(["Import", "Export", "New Ontology"])
@@ -1185,7 +1203,7 @@ def render_import_export():
                         content = uploaded_file.read().decode("utf-8")
                         ont.load_from_string(content, format=format_)
                         st.session_state.ontology = ont
-                        show_message(f"Ontology imported successfully! ({len(ont.graph)} triples)", "success")
+                        set_flash_message(f"Ontology imported successfully! ({len(ont.graph)} triples)", "success")
                         st.rerun()
                     except Exception as e:
                         show_message(f"Error importing ontology: {str(e)}", "error")
@@ -1201,7 +1219,7 @@ def render_import_export():
                     try:
                         ont.load_from_string(content, format=format_)
                         st.session_state.ontology = ont
-                        show_message(f"Ontology imported successfully! ({len(ont.graph)} triples)", "success")
+                        set_flash_message(f"Ontology imported successfully! ({len(ont.graph)} triples)", "success")
                         st.rerun()
                     except Exception as e:
                         show_message(f"Error importing ontology: {str(e)}", "error")
