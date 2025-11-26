@@ -1575,62 +1575,190 @@ def render_visualization():
 
     ont = st.session_state.ontology
     classes = ont.get_classes()
+    object_props = ont.get_object_properties()
+    individuals = ont.get_individuals()
 
-    if not classes:
-        st.info("No classes to visualize. Add some classes first.")
-        return
-
-    st.subheader("Class Hierarchy")
-
-    # Build hierarchy text
-    def build_tree_text(classes):
-        # Find root classes
-        roots = [c for c in classes if not c["parents"]]
-        if not roots:
-            roots = classes[:1]  # Fallback to first class
-
-        lines = []
-
-        def add_class(cls_name, level=0):
-            cls = next((c for c in classes if c["name"] == cls_name), None)
-            if cls:
-                prefix = "  " * level + ("└── " if level > 0 else "")
-                label = f" ({cls['label']})" if cls["label"] else ""
-                lines.append(f"{prefix}{cls['name']}{label}")
-                for child in cls["children"]:
-                    add_class(child, level + 1)
-
-        for root in roots:
-            add_class(root["name"])
-
-        return "\n".join(lines)
-
-    tree_text = build_tree_text(classes)
-    st.code(tree_text, language=None)
-
-    # Statistics visualization
-    st.subheader("Ontology Statistics")
     stats = ont.get_statistics()
 
-    col1, col2 = st.columns(2)
+    if stats["content_triples"] == 0:
+        st.info("No content to visualize. Add classes, properties, or individuals first.")
+        return
 
-    with col1:
-        st.write("**Element Distribution:**")
-        chart_data = {
-            "Element": ["Classes", "Object Props", "Data Props", "Individuals"],
-            "Count": [stats["classes"], stats["object_properties"],
-                     stats["data_properties"], stats["individuals"]]
-        }
-        st.bar_chart(chart_data, x="Element", y="Count")
+    tab1, tab2, tab3 = st.tabs(["Interactive Graph", "Class Hierarchy", "Statistics"])
 
-    with col2:
-        st.write("**Quick Stats:**")
-        st.write(f"- Total Classes: {stats['classes']}")
-        st.write(f"- Total Object Properties: {stats['object_properties']}")
-        st.write(f"- Total Data Properties: {stats['data_properties']}")
-        st.write(f"- Total Individuals: {stats['individuals']}")
-        st.write(f"- Total Restrictions: {stats['restrictions']}")
-        st.write(f"- Content Triples: {stats['content_triples']}")
+    with tab1:
+        st.subheader("Interactive Ontology Graph")
+
+        # Graph options
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            show_classes = st.checkbox("Show Classes", value=True)
+        with col2:
+            show_properties = st.checkbox("Show Properties", value=True)
+        with col3:
+            show_individuals = st.checkbox("Show Individuals", value=True)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            height = st.slider("Graph Height", 400, 800, 600)
+        with col2:
+            physics = st.checkbox("Enable Physics", value=True)
+
+        # Build the graph
+        from pyvis.network import Network
+        import tempfile
+        import os
+
+        net = Network(height=f"{height}px", width="100%", bgcolor="#ffffff",
+                     font_color="#333333", directed=True)
+
+        # Configure physics
+        if physics:
+            net.barnes_hut(gravity=-3000, central_gravity=0.3,
+                         spring_length=100, spring_strength=0.05)
+        else:
+            net.toggle_physics(False)
+
+        # Add classes as nodes
+        if show_classes and classes:
+            for cls in classes:
+                label = cls["label"] if cls["label"] else cls["name"]
+                title = f"Class: {cls['name']}"
+                if cls["label"]:
+                    title += f"\nLabel: {cls['label']}"
+                if cls["comment"]:
+                    title += f"\nComment: {cls['comment'][:100]}"
+
+                net.add_node(cls["name"], label=label, title=title,
+                           color="#4CAF50", shape="box", size=25)
+
+            # Add class hierarchy edges
+            for cls in classes:
+                for parent in cls["parents"]:
+                    net.add_edge(cls["name"], parent, label="subClassOf",
+                               color="#81C784", arrows="to")
+
+        # Add object properties and their connections
+        if show_properties and object_props:
+            for prop in object_props:
+                # Add property as a small node
+                label = prop["label"] if prop["label"] else prop["name"]
+                title = f"Object Property: {prop['name']}"
+                if prop["domain"]:
+                    title += f"\nDomain: {prop['domain']}"
+                if prop["range"]:
+                    title += f"\nRange: {prop['range']}"
+
+                net.add_node(f"prop_{prop['name']}", label=label, title=title,
+                           color="#2196F3", shape="ellipse", size=15)
+
+                # Connect to domain and range if they exist
+                if prop["domain"] and show_classes:
+                    net.add_edge(prop["domain"], f"prop_{prop['name']}",
+                               color="#90CAF9", arrows="to", dashes=True)
+                if prop["range"] and show_classes:
+                    net.add_edge(f"prop_{prop['name']}", prop["range"],
+                               color="#90CAF9", arrows="to", dashes=True)
+
+        # Add individuals
+        if show_individuals and individuals:
+            for ind in individuals:
+                label = ind["label"] if ind["label"] else ind["name"]
+                title = f"Individual: {ind['name']}"
+                if ind["classes"]:
+                    title += f"\nType: {', '.join(ind['classes'])}"
+
+                net.add_node(f"ind_{ind['name']}", label=label, title=title,
+                           color="#FF9800", shape="dot", size=20)
+
+                # Connect to classes
+                if show_classes:
+                    for cls_name in ind["classes"]:
+                        if any(c["name"] == cls_name for c in classes):
+                            net.add_edge(f"ind_{ind['name']}", cls_name,
+                                       label="type", color="#FFB74D", arrows="to")
+
+        # Add class relations
+        class_relations = ont.get_class_relations()
+        if show_classes:
+            for rel in class_relations:
+                if rel["relation"] == "equivalentClass":
+                    net.add_edge(rel["subject"], rel["object"],
+                               label="≡", color="#9C27B0", arrows="to")
+                elif rel["relation"] == "disjointWith":
+                    net.add_edge(rel["subject"], rel["object"],
+                               label="⊥", color="#F44336", arrows="to")
+
+        # Generate and display the graph
+        try:
+            # Save to temp file
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp:
+                net.save_graph(tmp.name)
+                with open(tmp.name, "r", encoding="utf-8") as f:
+                    html_content = f.read()
+                os.unlink(tmp.name)
+
+            # Display in Streamlit
+            st.components.v1.html(html_content, height=height + 50, scrolling=True)
+
+        except Exception as e:
+            st.error(f"Error rendering graph: {str(e)}")
+
+        st.caption("Drag nodes to rearrange • Scroll to zoom • Hover for details")
+
+    with tab2:
+        st.subheader("Class Hierarchy (Text)")
+
+        if not classes:
+            st.info("No classes defined.")
+        else:
+            # Build hierarchy text
+            def build_tree_text(classes):
+                roots = [c for c in classes if not c["parents"]]
+                if not roots:
+                    roots = classes[:1]
+
+                lines = []
+
+                def add_class(cls_name, level=0):
+                    cls = next((c for c in classes if c["name"] == cls_name), None)
+                    if cls:
+                        prefix = "  " * level + ("└── " if level > 0 else "")
+                        label = f" ({cls['label']})" if cls["label"] else ""
+                        lines.append(f"{prefix}{cls['name']}{label}")
+                        for child in cls["children"]:
+                            add_class(child, level + 1)
+
+                for root in roots:
+                    add_class(root["name"])
+
+                return "\n".join(lines)
+
+            tree_text = build_tree_text(classes)
+            st.code(tree_text, language=None)
+
+    with tab3:
+        st.subheader("Ontology Statistics")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.write("**Element Distribution:**")
+            chart_data = {
+                "Element": ["Classes", "Object Props", "Data Props", "Individuals"],
+                "Count": [stats["classes"], stats["object_properties"],
+                         stats["data_properties"], stats["individuals"]]
+            }
+            st.bar_chart(chart_data, x="Element", y="Count")
+
+        with col2:
+            st.write("**Quick Stats:**")
+            st.write(f"- Total Classes: {stats['classes']}")
+            st.write(f"- Total Object Properties: {stats['object_properties']}")
+            st.write(f"- Total Data Properties: {stats['data_properties']}")
+            st.write(f"- Total Individuals: {stats['individuals']}")
+            st.write(f"- Total Restrictions: {stats['restrictions']}")
+            st.write(f"- Content Triples: {stats['content_triples']}")
 
 
 def main():
