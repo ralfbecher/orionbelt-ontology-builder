@@ -1242,13 +1242,17 @@ class OntologyManager:
 
     def get_statistics(self) -> Dict[str, int]:
         """Get ontology statistics."""
+        # Count ontology metadata triples (declaration + metadata)
+        ontology_meta_count = len(list(self.graph.predicate_objects(self.ontology_uri)))
+
         stats = {
             "classes": 0,
             "object_properties": 0,
             "data_properties": 0,
             "individuals": 0,
             "restrictions": 0,
-            "total_triples": len(self.graph)
+            "total_triples": len(self.graph),
+            "content_triples": len(self.graph) - ontology_meta_count
         }
 
         for _ in self.graph.subjects(RDF.type, OWL.Class):

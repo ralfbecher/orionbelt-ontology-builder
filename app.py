@@ -162,7 +162,7 @@ def render_dashboard():
     with col5:
         st.metric("Restrictions", stats["restrictions"])
     with col6:
-        st.metric("Total Triples", stats["total_triples"])
+        st.metric("Content Triples", stats["content_triples"])
 
     st.divider()
 
@@ -1630,7 +1630,7 @@ def render_visualization():
         st.write(f"- Total Data Properties: {stats['data_properties']}")
         st.write(f"- Total Individuals: {stats['individuals']}")
         st.write(f"- Total Restrictions: {stats['restrictions']}")
-        st.write(f"- Total Triples: {stats['total_triples']}")
+        st.write(f"- Content Triples: {stats['content_triples']}")
 
 
 def main():
@@ -1668,7 +1668,7 @@ def main():
     st.sidebar.write(f"🔗 Object Props: {stats['object_properties']}")
     st.sidebar.write(f"📝 Data Props: {stats['data_properties']}")
     st.sidebar.write(f"👤 Individuals: {stats['individuals']}")
-    st.sidebar.write(f"📊 Triples: {stats['total_triples']}")
+    st.sidebar.write(f"📊 Triples: {stats['content_triples']}")
 
     # Render selected page
     pages[selection]()
