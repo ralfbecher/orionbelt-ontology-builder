@@ -1589,20 +1589,18 @@ def render_visualization():
     with tab1:
         st.subheader("Interactive Ontology Graph")
 
-        # Graph options
-        col1, col2, col3 = st.columns(3)
+        # Graph options - all in one row
+        col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 2, 1])
         with col1:
-            show_classes = st.checkbox("Show Classes", value=True)
+            show_classes = st.checkbox("Classes", value=True)
         with col2:
-            show_properties = st.checkbox("Show Properties", value=True)
+            show_properties = st.checkbox("Properties", value=True)
         with col3:
-            show_individuals = st.checkbox("Show Individuals", value=True)
-
-        col1, col2 = st.columns(2)
-        with col1:
-            height = st.slider("Graph Height", 400, 800, 600)
-        with col2:
-            physics = st.checkbox("Enable Physics", value=True)
+            show_individuals = st.checkbox("Individuals", value=True)
+        with col4:
+            height = st.slider("Height", 400, 800, 600, label_visibility="collapsed")
+        with col5:
+            physics = st.checkbox("Physics", value=True)
 
         # Build the graph
         from pyvis.network import Network
