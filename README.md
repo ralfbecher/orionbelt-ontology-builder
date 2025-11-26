@@ -136,6 +136,10 @@ orionbelt-ontology-builder/
 ├── app.py                 # Streamlit UI application
 ├── ontology_manager.py    # Core OWL operations using rdflib
 ├── requirements.txt       # Python dependencies
+├── lib/                   # Frontend vendor libraries
+│   ├── vis-9.1.2/         # vis-network for graph visualization
+│   ├── tom-select/        # Tom Select for enhanced dropdowns
+│   └── bindings/          # JavaScript utility bindings
 ├── .gitignore
 ├── README.md
 └── venv/                  # Virtual environment (not in repo)
