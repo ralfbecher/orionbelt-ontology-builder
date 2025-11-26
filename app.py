@@ -233,6 +233,7 @@ def render_classes():
                     if st.session_state.get(f"edit_class_{cls['name']}", False):
                         st.divider()
                         with st.form(f"edit_class_form_{cls['name']}"):
+                            new_name = st.text_input("Name (URI local part)", value=cls["name"], key=f"name_{cls['name']}")
                             new_label = st.text_input("Label", value=cls["label"], key=f"lbl_{cls['name']}")
                             new_comment = st.text_area("Comment", value=cls["comment"], key=f"cmt_{cls['name']}")
                             other_classes = [c for c in class_names if c != cls["name"]]
@@ -244,14 +245,25 @@ def render_classes():
                                 key=f"par_{cls['name']}")
 
                             if st.form_submit_button("Save Changes"):
+                                # Handle rename first
+                                if new_name and new_name != cls["name"]:
+                                    if ont.rename_class(cls["name"], new_name):
+                                        current_name = new_name
+                                        show_message(f"Class renamed to '{new_name}'", "success")
+                                    else:
+                                        show_message(f"Cannot rename: '{new_name}' already exists!", "error")
+                                        st.rerun()
+                                else:
+                                    current_name = cls["name"]
+
                                 if cls["parents"] and new_parent != cls["parents"][0]:
-                                    ont.update_class(cls["name"], remove_parent=cls["parents"][0])
-                                ont.update_class(cls["name"],
+                                    ont.update_class(current_name, remove_parent=cls["parents"][0])
+                                ont.update_class(current_name,
                                     new_label=new_label,
                                     new_comment=new_comment,
                                     new_parent=new_parent if new_parent != "None" else None)
                                 st.session_state[f"edit_class_{cls['name']}"] = False
-                                show_message(f"Class '{cls['name']}' updated!", "success")
+                                show_message(f"Class '{current_name}' updated!", "success")
                                 st.rerun()
 
             # Table view
@@ -410,6 +422,7 @@ def render_properties():
                     if st.session_state.get(f"edit_objprop_{prop['name']}", False):
                         st.divider()
                         with st.form(f"edit_objprop_form_{prop['name']}"):
+                            new_name = st.text_input("Name (URI local part)", value=prop["name"], key=f"objp_name_{prop['name']}")
                             new_label = st.text_input("Label", value=prop["label"], key=f"objp_lbl_{prop['name']}")
                             new_comment = st.text_area("Comment", value=prop["comment"], key=f"objp_cmt_{prop['name']}")
                             col1, col2 = st.columns(2)
@@ -423,13 +436,24 @@ def render_properties():
                                     key=f"objp_rng_{prop['name']}")
 
                             if st.form_submit_button("Save Changes"):
-                                ont.update_property(prop["name"],
+                                # Handle rename first
+                                if new_name and new_name != prop["name"]:
+                                    if ont.rename_property(prop["name"], new_name):
+                                        current_name = new_name
+                                        show_message(f"Property renamed to '{new_name}'", "success")
+                                    else:
+                                        show_message(f"Cannot rename: '{new_name}' already exists!", "error")
+                                        st.rerun()
+                                else:
+                                    current_name = prop["name"]
+
+                                ont.update_property(current_name,
                                     new_label=new_label,
                                     new_comment=new_comment,
                                     new_domain=new_domain if new_domain != "None" else "",
                                     new_range=new_range if new_range != "None" else "")
                                 st.session_state[f"edit_objprop_{prop['name']}"] = False
-                                show_message(f"Property '{prop['name']}' updated!", "success")
+                                show_message(f"Property '{current_name}' updated!", "success")
                                 st.rerun()
 
     with tab2:
@@ -484,6 +508,7 @@ def render_properties():
                     if st.session_state.get(f"edit_dataprop_{prop['name']}", False):
                         st.divider()
                         with st.form(f"edit_dataprop_form_{prop['name']}"):
+                            new_name = st.text_input("Name (URI local part)", value=prop["name"], key=f"dp_name_{prop['name']}")
                             new_label = st.text_input("Label", value=prop["label"], key=f"dp_lbl_{prop['name']}")
                             new_comment = st.text_area("Comment", value=prop["comment"], key=f"dp_cmt_{prop['name']}")
                             col1, col2 = st.columns(2)
@@ -498,13 +523,24 @@ def render_properties():
                                     key=f"dp_rng_{prop['name']}")
 
                             if st.form_submit_button("Save Changes"):
-                                ont.update_property(prop["name"],
+                                # Handle rename first
+                                if new_name and new_name != prop["name"]:
+                                    if ont.rename_property(prop["name"], new_name):
+                                        current_name = new_name
+                                        show_message(f"Property renamed to '{new_name}'", "success")
+                                    else:
+                                        show_message(f"Cannot rename: '{new_name}' already exists!", "error")
+                                        st.rerun()
+                                else:
+                                    current_name = prop["name"]
+
+                                ont.update_property(current_name,
                                     new_label=new_label,
                                     new_comment=new_comment,
                                     new_domain=new_domain if new_domain != "None" else "",
                                     new_range=new_range)
                                 st.session_state[f"edit_dataprop_{prop['name']}"] = False
-                                show_message(f"Property '{prop['name']}' updated!", "success")
+                                show_message(f"Property '{current_name}' updated!", "success")
                                 st.rerun()
 
     with tab3:
@@ -652,6 +688,7 @@ def render_individuals():
                     if st.session_state.get(f"edit_ind_{ind['name']}", False):
                         st.divider()
                         with st.form(f"edit_ind_form_{ind['name']}"):
+                            new_name = st.text_input("Name (URI local part)", value=ind["name"], key=f"ind_name_{ind['name']}")
                             new_label = st.text_input("Label", value=ind["label"], key=f"ind_lbl_{ind['name']}")
                             new_comment = st.text_area("Comment", value=ind["comment"], key=f"ind_cmt_{ind['name']}")
 
@@ -670,13 +707,24 @@ def render_individuals():
                                     key=f"ind_rem_cls_{ind['name']}")
 
                             if st.form_submit_button("Save Changes"):
-                                ont.update_individual(ind["name"],
+                                # Handle rename first
+                                if new_name and new_name != ind["name"]:
+                                    if ont.rename_individual(ind["name"], new_name):
+                                        current_name = new_name
+                                        show_message(f"Individual renamed to '{new_name}'", "success")
+                                    else:
+                                        show_message(f"Cannot rename: '{new_name}' already exists!", "error")
+                                        st.rerun()
+                                else:
+                                    current_name = ind["name"]
+
+                                ont.update_individual(current_name,
                                     new_label=new_label,
                                     new_comment=new_comment,
                                     add_class=add_class if add_class != "None" else None,
                                     remove_class=remove_class if remove_class != "None" else None)
                                 st.session_state[f"edit_ind_{ind['name']}"] = False
-                                show_message(f"Individual '{ind['name']}' updated!", "success")
+                                show_message(f"Individual '{current_name}' updated!", "success")
                                 st.rerun()
 
     with tab2:

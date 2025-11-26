@@ -203,6 +203,36 @@ class OntologyManager:
         if new_parent:
             self.graph.add((class_uri, RDFS.subClassOf, self._uri(new_parent)))
 
+    def rename_class(self, old_name: str, new_name: str) -> bool:
+        """Rename a class, updating all references."""
+        if old_name == new_name:
+            return True
+
+        old_uri = self._uri(old_name)
+        new_uri = self._uri(new_name)
+
+        # Check if new name already exists
+        if (new_uri, RDF.type, OWL.Class) in self.graph:
+            return False
+
+        # Collect all triples to update
+        updates = []
+
+        # Triples where old_uri is subject
+        for p, o in self.graph.predicate_objects(old_uri):
+            updates.append(((old_uri, p, o), (new_uri, p, o)))
+
+        # Triples where old_uri is object
+        for s, p in self.graph.subject_predicates(old_uri):
+            updates.append(((s, p, old_uri), (s, p, new_uri)))
+
+        # Apply updates
+        for old_triple, new_triple in updates:
+            self.graph.remove(old_triple)
+            self.graph.add(new_triple)
+
+        return True
+
     def delete_class(self, name: str):
         """Delete a class and all its references."""
         class_uri = self._uri(name)
@@ -344,6 +374,41 @@ class OntologyManager:
                 else:
                     self.graph.add((prop_uri, RDFS.range, self._uri(new_range)))
 
+    def rename_property(self, old_name: str, new_name: str) -> bool:
+        """Rename a property, updating all references."""
+        if old_name == new_name:
+            return True
+
+        old_uri = self._uri(old_name)
+        new_uri = self._uri(new_name)
+
+        # Check if new name already exists
+        if (new_uri, RDF.type, OWL.ObjectProperty) in self.graph or \
+           (new_uri, RDF.type, OWL.DatatypeProperty) in self.graph:
+            return False
+
+        # Collect all triples to update
+        updates = []
+
+        # Triples where old_uri is subject
+        for p, o in self.graph.predicate_objects(old_uri):
+            updates.append(((old_uri, p, o), (new_uri, p, o)))
+
+        # Triples where old_uri is object
+        for s, p in self.graph.subject_predicates(old_uri):
+            updates.append(((s, p, old_uri), (s, p, new_uri)))
+
+        # Triples where old_uri is predicate (property assertions)
+        for s, o in self.graph.subject_objects(old_uri):
+            updates.append(((s, old_uri, o), (s, new_uri, o)))
+
+        # Apply updates
+        for old_triple, new_triple in updates:
+            self.graph.remove(old_triple)
+            self.graph.add(new_triple)
+
+        return True
+
     def delete_property(self, name: str):
         """Delete a property and all its references."""
         prop_uri = self._uri(name)
@@ -481,6 +546,36 @@ class OntologyManager:
 
         if remove_class:
             self.graph.remove((ind_uri, RDF.type, self._uri(remove_class)))
+
+    def rename_individual(self, old_name: str, new_name: str) -> bool:
+        """Rename an individual, updating all references."""
+        if old_name == new_name:
+            return True
+
+        old_uri = self._uri(old_name)
+        new_uri = self._uri(new_name)
+
+        # Check if new name already exists
+        if (new_uri, RDF.type, OWL.NamedIndividual) in self.graph:
+            return False
+
+        # Collect all triples to update
+        updates = []
+
+        # Triples where old_uri is subject
+        for p, o in self.graph.predicate_objects(old_uri):
+            updates.append(((old_uri, p, o), (new_uri, p, o)))
+
+        # Triples where old_uri is object
+        for s, p in self.graph.subject_predicates(old_uri):
+            updates.append(((s, p, old_uri), (s, p, new_uri)))
+
+        # Apply updates
+        for old_triple, new_triple in updates:
+            self.graph.remove(old_triple)
+            self.graph.add(new_triple)
+
+        return True
 
     def delete_individual(self, name: str):
         """Delete an individual and all its references."""
