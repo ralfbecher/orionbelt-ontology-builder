@@ -203,23 +203,56 @@ def render_classes():
             # Find root classes (no parents)
             root_classes = [c for c in classes if not c["parents"]]
 
-            def display_class_tree(class_info, level=0):
-                indent = "    " * level
-                expander_label = f"{indent}📦 **{class_info['name']}**"
-                if class_info["label"]:
-                    expander_label += f" - {class_info['label']}"
+            for cls in classes:
+                with st.expander(f"📦 **{cls['name']}**" + (f" - {cls['label']}" if cls['label'] else "")):
+                    col_info, col_actions = st.columns([4, 1])
 
-                with st.expander(expander_label, expanded=(level == 0)):
-                    st.write(f"**URI:** {class_info['uri']}")
-                    if class_info["comment"]:
-                        st.write(f"**Comment:** {class_info['comment']}")
-                    if class_info["parents"]:
-                        st.write(f"**Parents:** {', '.join(class_info['parents'])}")
-                    if class_info["children"]:
-                        st.write(f"**Children:** {', '.join(class_info['children'])}")
+                    with col_info:
+                        st.write(f"**URI:** {cls['uri']}")
+                        if cls["comment"]:
+                            st.write(f"**Comment:** {cls['comment']}")
+                        if cls["parents"]:
+                            st.write(f"**Parents:** {', '.join(cls['parents'])}")
+                        if cls["children"]:
+                            st.write(f"**Children:** {', '.join(cls['children'])}")
 
-            for root in root_classes:
-                display_class_tree(root)
+                    with col_actions:
+                        # Edit functionality
+                        if f"edit_class_{cls['name']}" not in st.session_state:
+                            st.session_state[f"edit_class_{cls['name']}"] = False
+
+                        if st.button("✏️ Edit", key=f"btn_edit_class_{cls['name']}"):
+                            st.session_state[f"edit_class_{cls['name']}"] = not st.session_state[f"edit_class_{cls['name']}"]
+
+                        if st.button("🗑️ Delete", key=f"btn_del_class_{cls['name']}"):
+                            ont.delete_class(cls["name"])
+                            show_message(f"Class '{cls['name']}' deleted!", "success")
+                            st.rerun()
+
+                    # Inline edit form
+                    if st.session_state.get(f"edit_class_{cls['name']}", False):
+                        st.divider()
+                        with st.form(f"edit_class_form_{cls['name']}"):
+                            new_label = st.text_input("Label", value=cls["label"], key=f"lbl_{cls['name']}")
+                            new_comment = st.text_area("Comment", value=cls["comment"], key=f"cmt_{cls['name']}")
+                            other_classes = [c for c in class_names if c != cls["name"]]
+                            current_parent = cls["parents"][0] if cls["parents"] else "None"
+                            new_parent = st.selectbox("Parent Class",
+                                options=["None"] + other_classes,
+                                index=0 if current_parent == "None" else
+                                      (other_classes.index(current_parent) + 1 if current_parent in other_classes else 0),
+                                key=f"par_{cls['name']}")
+
+                            if st.form_submit_button("Save Changes"):
+                                if cls["parents"] and new_parent != cls["parents"][0]:
+                                    ont.update_class(cls["name"], remove_parent=cls["parents"][0])
+                                ont.update_class(cls["name"],
+                                    new_label=new_label,
+                                    new_comment=new_comment,
+                                    new_parent=new_parent if new_parent != "None" else None)
+                                st.session_state[f"edit_class_{cls['name']}"] = False
+                                show_message(f"Class '{cls['name']}' updated!", "success")
+                                st.rerun()
 
             # Table view
             st.subheader("All Classes")
@@ -346,24 +379,58 @@ def render_properties():
 
             for prop in filtered_obj_props:
                 with st.expander(f"🔗 **{prop['name']}** ({prop['domain'] or '?'} → {prop['range'] or '?'})"):
-                    st.write(f"**URI:** {prop['uri']}")
-                    if prop["label"]:
-                        st.write(f"**Label:** {prop['label']}")
-                    if prop["comment"]:
-                        st.write(f"**Comment:** {prop['comment']}")
-                    st.write(f"**Domain:** {prop['domain'] or 'Not specified'}")
-                    st.write(f"**Range:** {prop['range'] or 'Not specified'}")
-                    if prop["characteristics"]:
-                        st.write(f"**Characteristics:** {', '.join(prop['characteristics'])}")
-                    if prop.get("inverse_of"):
-                        st.write(f"**Inverse of:** {prop['inverse_of']}")
+                    col_info, col_actions = st.columns([4, 1])
 
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button(f"Delete {prop['name']}", key=f"del_obj_{prop['name']}"):
+                    with col_info:
+                        st.write(f"**URI:** {prop['uri']}")
+                        if prop["label"]:
+                            st.write(f"**Label:** {prop['label']}")
+                        if prop["comment"]:
+                            st.write(f"**Comment:** {prop['comment']}")
+                        st.write(f"**Domain:** {prop['domain'] or 'Not specified'}")
+                        st.write(f"**Range:** {prop['range'] or 'Not specified'}")
+                        if prop["characteristics"]:
+                            st.write(f"**Characteristics:** {', '.join(prop['characteristics'])}")
+                        if prop.get("inverse_of"):
+                            st.write(f"**Inverse of:** {prop['inverse_of']}")
+
+                    with col_actions:
+                        if f"edit_objprop_{prop['name']}" not in st.session_state:
+                            st.session_state[f"edit_objprop_{prop['name']}"] = False
+
+                        if st.button("✏️ Edit", key=f"btn_edit_objprop_{prop['name']}"):
+                            st.session_state[f"edit_objprop_{prop['name']}"] = not st.session_state[f"edit_objprop_{prop['name']}"]
+
+                        if st.button("🗑️ Delete", key=f"btn_del_objprop_{prop['name']}"):
                             ont.delete_property(prop["name"])
                             show_message(f"Property '{prop['name']}' deleted!", "success")
                             st.rerun()
+
+                    # Inline edit form
+                    if st.session_state.get(f"edit_objprop_{prop['name']}", False):
+                        st.divider()
+                        with st.form(f"edit_objprop_form_{prop['name']}"):
+                            new_label = st.text_input("Label", value=prop["label"], key=f"objp_lbl_{prop['name']}")
+                            new_comment = st.text_area("Comment", value=prop["comment"], key=f"objp_cmt_{prop['name']}")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                new_domain = st.selectbox("Domain", options=["None"] + class_names,
+                                    index=0 if not prop["domain"] else (class_names.index(prop["domain"]) + 1 if prop["domain"] in class_names else 0),
+                                    key=f"objp_dom_{prop['name']}")
+                            with col2:
+                                new_range = st.selectbox("Range", options=["None"] + class_names,
+                                    index=0 if not prop["range"] else (class_names.index(prop["range"]) + 1 if prop["range"] in class_names else 0),
+                                    key=f"objp_rng_{prop['name']}")
+
+                            if st.form_submit_button("Save Changes"):
+                                ont.update_property(prop["name"],
+                                    new_label=new_label,
+                                    new_comment=new_comment,
+                                    new_domain=new_domain if new_domain != "None" else "",
+                                    new_range=new_range if new_range != "None" else "")
+                                st.session_state[f"edit_objprop_{prop['name']}"] = False
+                                show_message(f"Property '{prop['name']}' updated!", "success")
+                                st.rerun()
 
     with tab2:
         st.subheader("Data Properties")
@@ -385,21 +452,60 @@ def render_properties():
 
             st.caption(f"Showing {len(filtered_data_props)} of {len(data_props)} properties")
 
+            datatypes = list(OntologyManager.XSD_DATATYPES.keys())
+
             for prop in filtered_data_props:
                 with st.expander(f"📝 **{prop['name']}** ({prop['domain'] or '?'} → {prop['range']})"):
-                    st.write(f"**URI:** {prop['uri']}")
-                    if prop["label"]:
-                        st.write(f"**Label:** {prop['label']}")
-                    if prop["comment"]:
-                        st.write(f"**Comment:** {prop['comment']}")
-                    st.write(f"**Domain:** {prop['domain'] or 'Not specified'}")
-                    st.write(f"**Range (Datatype):** {prop['range']}")
-                    st.write(f"**Functional:** {'Yes' if prop['functional'] else 'No'}")
+                    col_info, col_actions = st.columns([4, 1])
 
-                    if st.button(f"Delete {prop['name']}", key=f"del_data_{prop['name']}"):
-                        ont.delete_property(prop["name"])
-                        show_message(f"Property '{prop['name']}' deleted!", "success")
-                        st.rerun()
+                    with col_info:
+                        st.write(f"**URI:** {prop['uri']}")
+                        if prop["label"]:
+                            st.write(f"**Label:** {prop['label']}")
+                        if prop["comment"]:
+                            st.write(f"**Comment:** {prop['comment']}")
+                        st.write(f"**Domain:** {prop['domain'] or 'Not specified'}")
+                        st.write(f"**Range (Datatype):** {prop['range']}")
+                        st.write(f"**Functional:** {'Yes' if prop['functional'] else 'No'}")
+
+                    with col_actions:
+                        if f"edit_dataprop_{prop['name']}" not in st.session_state:
+                            st.session_state[f"edit_dataprop_{prop['name']}"] = False
+
+                        if st.button("✏️ Edit", key=f"btn_edit_dataprop_{prop['name']}"):
+                            st.session_state[f"edit_dataprop_{prop['name']}"] = not st.session_state[f"edit_dataprop_{prop['name']}"]
+
+                        if st.button("🗑️ Delete", key=f"btn_del_dataprop_{prop['name']}"):
+                            ont.delete_property(prop["name"])
+                            show_message(f"Property '{prop['name']}' deleted!", "success")
+                            st.rerun()
+
+                    # Inline edit form
+                    if st.session_state.get(f"edit_dataprop_{prop['name']}", False):
+                        st.divider()
+                        with st.form(f"edit_dataprop_form_{prop['name']}"):
+                            new_label = st.text_input("Label", value=prop["label"], key=f"dp_lbl_{prop['name']}")
+                            new_comment = st.text_area("Comment", value=prop["comment"], key=f"dp_cmt_{prop['name']}")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                new_domain = st.selectbox("Domain", options=["None"] + class_names,
+                                    index=0 if not prop["domain"] else (class_names.index(prop["domain"]) + 1 if prop["domain"] in class_names else 0),
+                                    key=f"dp_dom_{prop['name']}")
+                            with col2:
+                                current_range = prop["range"] if prop["range"] in datatypes else "string"
+                                new_range = st.selectbox("Range (Datatype)", options=datatypes,
+                                    index=datatypes.index(current_range) if current_range in datatypes else 0,
+                                    key=f"dp_rng_{prop['name']}")
+
+                            if st.form_submit_button("Save Changes"):
+                                ont.update_property(prop["name"],
+                                    new_label=new_label,
+                                    new_comment=new_comment,
+                                    new_domain=new_domain if new_domain != "None" else "",
+                                    new_range=new_range)
+                                st.session_state[f"edit_dataprop_{prop['name']}"] = False
+                                show_message(f"Property '{prop['name']}' updated!", "success")
+                                st.rerun()
 
     with tab3:
         st.subheader("Add Object Property")
@@ -515,22 +621,63 @@ def render_individuals():
             for ind in individuals:
                 classes_str = ", ".join(ind["classes"]) if ind["classes"] else "No class"
                 with st.expander(f"👤 **{ind['name']}** ({classes_str})"):
-                    st.write(f"**URI:** {ind['uri']}")
-                    if ind["label"]:
-                        st.write(f"**Label:** {ind['label']}")
-                    if ind["comment"]:
-                        st.write(f"**Comment:** {ind['comment']}")
-                    st.write(f"**Classes:** {', '.join(ind['classes']) or 'None'}")
+                    col_info, col_actions = st.columns([4, 1])
 
-                    if ind["properties"]:
-                        st.write("**Property Values:**")
-                        for prop in ind["properties"]:
-                            st.write(f"  - {prop['property']}: {prop['value']}")
+                    with col_info:
+                        st.write(f"**URI:** {ind['uri']}")
+                        if ind["label"]:
+                            st.write(f"**Label:** {ind['label']}")
+                        if ind["comment"]:
+                            st.write(f"**Comment:** {ind['comment']}")
+                        st.write(f"**Classes:** {', '.join(ind['classes']) or 'None'}")
 
-                    if st.button(f"Delete {ind['name']}", key=f"del_ind_{ind['name']}"):
-                        ont.delete_individual(ind["name"])
-                        show_message(f"Individual '{ind['name']}' deleted!", "success")
-                        st.rerun()
+                        if ind["properties"]:
+                            st.write("**Property Values:**")
+                            for prop in ind["properties"]:
+                                st.write(f"  - {prop['property']}: {prop['value']}")
+
+                    with col_actions:
+                        if f"edit_ind_{ind['name']}" not in st.session_state:
+                            st.session_state[f"edit_ind_{ind['name']}"] = False
+
+                        if st.button("✏️ Edit", key=f"btn_edit_ind_{ind['name']}"):
+                            st.session_state[f"edit_ind_{ind['name']}"] = not st.session_state[f"edit_ind_{ind['name']}"]
+
+                        if st.button("🗑️ Delete", key=f"btn_del_ind_{ind['name']}"):
+                            ont.delete_individual(ind["name"])
+                            show_message(f"Individual '{ind['name']}' deleted!", "success")
+                            st.rerun()
+
+                    # Inline edit form
+                    if st.session_state.get(f"edit_ind_{ind['name']}", False):
+                        st.divider()
+                        with st.form(f"edit_ind_form_{ind['name']}"):
+                            new_label = st.text_input("Label", value=ind["label"], key=f"ind_lbl_{ind['name']}")
+                            new_comment = st.text_area("Comment", value=ind["comment"], key=f"ind_cmt_{ind['name']}")
+
+                            st.write("**Manage Classes:**")
+                            current_classes = ind["classes"]
+                            available_classes = [c for c in class_names if c not in current_classes]
+
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                add_class = st.selectbox("Add to Class",
+                                    options=["None"] + available_classes,
+                                    key=f"ind_add_cls_{ind['name']}")
+                            with col2:
+                                remove_class = st.selectbox("Remove from Class",
+                                    options=["None"] + current_classes,
+                                    key=f"ind_rem_cls_{ind['name']}")
+
+                            if st.form_submit_button("Save Changes"):
+                                ont.update_individual(ind["name"],
+                                    new_label=new_label,
+                                    new_comment=new_comment,
+                                    add_class=add_class if add_class != "None" else None,
+                                    remove_class=remove_class if remove_class != "None" else None)
+                                st.session_state[f"edit_ind_{ind['name']}"] = False
+                                show_message(f"Individual '{ind['name']}' updated!", "success")
+                                st.rerun()
 
     with tab2:
         st.subheader("Add Individual")
