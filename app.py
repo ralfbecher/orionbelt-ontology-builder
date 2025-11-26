@@ -1642,7 +1642,7 @@ def render_visualization():
             "edges": {
                 "font": {
                     "color": "#666666",
-                    "size": 11,
+                    "size": 8,
                     "align": "middle",
                     "background": "white"
                 },
@@ -1652,6 +1652,9 @@ def render_visualization():
             }
         }
         ''')
+
+        # Build set of class names for edge validation
+        class_names = {c["name"] for c in classes} if classes else set()
 
         # Add classes as nodes
         if show_classes and classes:
@@ -1667,11 +1670,13 @@ def render_visualization():
                            color={"background": "#4CAF50", "border": "#388E3C"},
                            shape="box", size=25)
 
-            # Add class hierarchy edges
+            # Add class hierarchy edges (only if parent node exists in graph)
             for cls in classes:
                 for parent in cls["parents"]:
-                    net.add_edge(cls["name"], parent, label="subClassOf",
-                               color="#81C784", arrows="to")
+                    if parent in class_names:
+                        net.add_edge(cls["name"], parent, label="subClassOf",
+                                   title=f"Subclass relation:\n{cls['name']} is a subclass of {parent}",
+                                   color="#81C784", arrows="to")
 
         # Add object properties and their connections
         if show_properties and object_props:
@@ -1688,12 +1693,14 @@ def render_visualization():
                            color={"background": "#2196F3", "border": "#1976D2"},
                            shape="ellipse", size=15)
 
-                # Connect to domain and range if they exist
-                if prop["domain"] and show_classes:
+                # Connect to domain and range if they exist as nodes
+                if prop["domain"] and show_classes and prop["domain"] in class_names:
                     net.add_edge(prop["domain"], f"prop_{prop['name']}",
+                               title=f"Domain:\n{prop['name']} has domain {prop['domain']}",
                                color="#90CAF9", arrows="to", dashes=True)
-                if prop["range"] and show_classes:
+                if prop["range"] and show_classes and prop["range"] in class_names:
                     net.add_edge(f"prop_{prop['name']}", prop["range"],
+                               title=f"Range:\n{prop['name']} has range {prop['range']}",
                                color="#90CAF9", arrows="to", dashes=True)
 
         # Add individuals
@@ -1713,18 +1720,25 @@ def render_visualization():
                     for cls_name in ind["classes"]:
                         if any(c["name"] == cls_name for c in classes):
                             net.add_edge(f"ind_{ind['name']}", cls_name,
-                                       label="type", color="#FFB74D", arrows="to")
+                                       label="type",
+                                       title=f"Instance of:\n{ind['name']} is an instance of {cls_name}",
+                                       color="#FFB74D", arrows="to")
 
-        # Add class relations
+        # Add class relations (only if both nodes exist)
         class_relations = ont.get_class_relations()
-        if show_classes:
+        if show_classes and classes:
             for rel in class_relations:
-                if rel["relation"] == "equivalentClass":
-                    net.add_edge(rel["subject"], rel["object"],
-                               label="≡", color="#9C27B0", arrows="to")
-                elif rel["relation"] == "disjointWith":
-                    net.add_edge(rel["subject"], rel["object"],
-                               label="⊥", color="#F44336", arrows="to")
+                if rel["subject"] in class_names and rel["object"] in class_names:
+                    if rel["relation"] == "equivalentClass":
+                        net.add_edge(rel["subject"], rel["object"],
+                                   label="equivalentClass",
+                                   title=f"Equivalent classes:\n{rel['subject']} and {rel['object']} represent the same concept",
+                                   color="#9C27B0", arrows="to")
+                    elif rel["relation"] == "disjointWith":
+                        net.add_edge(rel["subject"], rel["object"],
+                                   label="disjointWith",
+                                   title=f"Disjoint classes:\n{rel['subject']} and {rel['object']} cannot share instances",
+                                   color="#F44336", arrows="to")
 
         # Generate and display the graph
         try:
