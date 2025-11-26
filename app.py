@@ -1621,14 +1621,26 @@ def render_visualization():
         import os
 
         net = Network(height=f"{height}px", width="100%", bgcolor="#ffffff",
-                     font_color="#333333", directed=True)
+                     font_color="#cccccc", directed=True)
 
-        # Configure physics
+        # Configure physics and node defaults
         if physics:
             net.barnes_hut(gravity=-3000, central_gravity=0.3,
                          spring_length=100, spring_strength=0.05)
         else:
             net.toggle_physics(False)
+
+        # Set default node options with light grey font
+        net.set_options('''
+        var options = {
+            "nodes": {
+                "font": {
+                    "color": "#e0e0e0",
+                    "size": 14
+                }
+            }
+        }
+        ''')
 
         # Add classes as nodes
         if show_classes and classes:
@@ -1642,8 +1654,7 @@ def render_visualization():
 
                 net.add_node(cls["name"], label=label, title=title,
                            color={"background": "#4CAF50", "border": "#388E3C"},
-                           shape="box", size=25,
-                           font="14px arial white")
+                           shape="box", size=25)
 
             # Add class hierarchy edges
             for cls in classes:
@@ -1664,8 +1675,7 @@ def render_visualization():
 
                 net.add_node(f"prop_{prop['name']}", label=label, title=title,
                            color={"background": "#2196F3", "border": "#1976D2"},
-                           shape="ellipse", size=15,
-                           font="12px arial white")
+                           shape="ellipse", size=15)
 
                 # Connect to domain and range if they exist
                 if prop["domain"] and show_classes:
@@ -1685,8 +1695,7 @@ def render_visualization():
 
                 net.add_node(f"ind_{ind['name']}", label=label, title=title,
                            color={"background": "#FF9800", "border": "#F57C00"},
-                           shape="dot", size=20,
-                           font="12px arial white")
+                           shape="dot", size=20)
 
                 # Connect to classes
                 if show_classes:
