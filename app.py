@@ -48,6 +48,16 @@ st.markdown("""
         border-radius: 4px;
         color: #721c24;
     }
+    /* Reduce top margin/padding */
+    .block-container {
+        padding-top: 1rem !important;
+    }
+    header[data-testid="stHeader"] {
+        height: 2.5rem !important;
+    }
+    .stMainBlockContainer {
+        padding-top: 1rem !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
