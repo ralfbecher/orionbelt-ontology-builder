@@ -304,8 +304,23 @@ def render_properties():
         if not object_props:
             st.info("No object properties defined yet.")
         else:
-            for prop in object_props:
-                with st.expander(f"🔗 **{prop['name']}** ({prop['domain']} → {prop['range']})"):
+            # Filter by domain class
+            filter_class_obj = st.selectbox(
+                "Filter by Domain Class",
+                options=["All"] + class_names + ["(No domain)"],
+                key="filter_obj_prop_class"
+            )
+
+            filtered_obj_props = object_props
+            if filter_class_obj == "(No domain)":
+                filtered_obj_props = [p for p in object_props if not p["domain"]]
+            elif filter_class_obj != "All":
+                filtered_obj_props = [p for p in object_props if p["domain"] == filter_class_obj]
+
+            st.caption(f"Showing {len(filtered_obj_props)} of {len(object_props)} properties")
+
+            for prop in filtered_obj_props:
+                with st.expander(f"🔗 **{prop['name']}** ({prop['domain'] or '?'} → {prop['range'] or '?'})"):
                     st.write(f"**URI:** {prop['uri']}")
                     if prop["label"]:
                         st.write(f"**Label:** {prop['label']}")
@@ -330,8 +345,23 @@ def render_properties():
         if not data_props:
             st.info("No data properties defined yet.")
         else:
-            for prop in data_props:
-                with st.expander(f"📝 **{prop['name']}** ({prop['domain']} → {prop['range']})"):
+            # Filter by domain class
+            filter_class_data = st.selectbox(
+                "Filter by Domain Class",
+                options=["All"] + class_names + ["(No domain)"],
+                key="filter_data_prop_class"
+            )
+
+            filtered_data_props = data_props
+            if filter_class_data == "(No domain)":
+                filtered_data_props = [p for p in data_props if not p["domain"]]
+            elif filter_class_data != "All":
+                filtered_data_props = [p for p in data_props if p["domain"] == filter_class_data]
+
+            st.caption(f"Showing {len(filtered_data_props)} of {len(data_props)} properties")
+
+            for prop in filtered_data_props:
+                with st.expander(f"📝 **{prop['name']}** ({prop['domain'] or '?'} → {prop['range']})"):
                     st.write(f"**URI:** {prop['uri']}")
                     if prop["label"]:
                         st.write(f"**Label:** {prop['label']}")
