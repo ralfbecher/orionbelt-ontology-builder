@@ -203,11 +203,10 @@ def render_dashboard():
     with col1:
         base_uri = st.text_input("Base URI", value=ont.base_uri,
                                  help="The namespace URI for your ontology (e.g., http://example.org/ontology#)")
-        title = st.text_input("Title", value=metadata.get("title", ""))
-        description = st.text_area("Description", value=metadata.get("description", ""))
+        label = st.text_input("Label (rdfs:label)", value=metadata.get("label", ""))
+        comment = st.text_area("Comment (rdfs:comment)", value=metadata.get("comment", ""))
 
     with col2:
-        version = st.text_input("Version", value=metadata.get("version", ""))
         version_iri = st.text_input("Version IRI", value=metadata.get("version_iri", ""),
                                     help="Optional IRI identifying this version of the ontology")
         creator = st.text_input("Creator", value=metadata.get("creator", ""))
@@ -218,8 +217,8 @@ def render_dashboard():
                 ont.set_base_uri(base_uri)
                 show_message(f"Base URI updated to: {ont.base_uri}", "success")
 
-            ont.set_ontology_metadata(title=title, description=description,
-                                      version=version, creator=creator,
+            ont.set_ontology_metadata(label=label, comment=comment,
+                                      creator=creator,
                                       version_iri=version_iri if version_iri else None)
             show_message("Metadata updated successfully!", "success")
             st.rerun()
@@ -1465,9 +1464,8 @@ def render_import_export():
             base_uri = st.text_input("Base URI *",
                                     value="http://example.org/ontology#",
                                     help="The base namespace URI for your ontology")
-            title = st.text_input("Title")
-            description = st.text_area("Description")
-            version = st.text_input("Version", value="1.0.0")
+            label = st.text_input("Label (rdfs:label)")
+            comment = st.text_area("Comment (rdfs:comment)")
             creator = st.text_input("Creator")
 
             submitted = st.form_submit_button("Create New Ontology")
@@ -1477,8 +1475,8 @@ def render_import_export():
                 else:
                     st.session_state.ontology = OntologyManager(base_uri=base_uri)
                     st.session_state.ontology.set_ontology_metadata(
-                        title=title, description=description,
-                        version=version, creator=creator
+                        label=label, comment=comment,
+                        creator=creator
                     )
                     show_message("New ontology created!", "success")
                     st.rerun()

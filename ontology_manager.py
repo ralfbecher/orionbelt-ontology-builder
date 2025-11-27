@@ -61,16 +61,13 @@ class OntologyManager:
         self.ontology_uri = URIRef(base_uri.rstrip("#").rstrip("/"))
         self.graph.add((self.ontology_uri, RDF.type, OWL.Ontology))
 
-    def set_ontology_metadata(self, title: str = None, description: str = None,
-                              version: str = None, creator: str = None,
-                              version_iri: str = None):
+    def set_ontology_metadata(self, label: str = None, comment: str = None,
+                              creator: str = None, version_iri: str = None):
         """Set ontology-level metadata."""
-        if title:
-            self.graph.set((self.ontology_uri, DCTERMS.title, Literal(title)))
-        if description:
-            self.graph.set((self.ontology_uri, DCTERMS.description, Literal(description)))
-        if version:
-            self.graph.set((self.ontology_uri, OWL.versionInfo, Literal(version)))
+        if label:
+            self.graph.set((self.ontology_uri, RDFS.label, Literal(label)))
+        if comment:
+            self.graph.set((self.ontology_uri, RDFS.comment, Literal(comment)))
         if creator:
             self.graph.set((self.ontology_uri, DCTERMS.creator, Literal(creator)))
         if version_iri:
@@ -115,9 +112,8 @@ class OntologyManager:
     def get_ontology_metadata(self) -> Dict[str, str]:
         """Get ontology-level metadata."""
         metadata = {}
-        for pred, key in [(DCTERMS.title, "title"), (DCTERMS.description, "description"),
-                          (OWL.versionInfo, "version"), (DCTERMS.creator, "creator"),
-                          (OWL.versionIRI, "version_iri")]:
+        for pred, key in [(RDFS.label, "label"), (RDFS.comment, "comment"),
+                          (DCTERMS.creator, "creator"), (OWL.versionIRI, "version_iri")]:
             value = self.graph.value(self.ontology_uri, pred)
             if value:
                 metadata[key] = str(value)
