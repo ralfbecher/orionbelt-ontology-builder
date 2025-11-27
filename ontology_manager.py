@@ -88,6 +88,30 @@ class OntologyManager:
         """Get all owl:imports URIs."""
         return [str(o) for o in self.graph.objects(self.ontology_uri, OWL.imports)]
 
+    def get_prefixes(self) -> List[Dict[str, str]]:
+        """Get namespace prefixes that were explicitly defined (stored during load)."""
+        if hasattr(self, '_loaded_prefixes') and self._loaded_prefixes:
+            return self._loaded_prefixes
+        # Fallback: return default namespace only
+        return [{"prefix": "(default)", "namespace": self.base_uri}]
+
+    def _extract_prefixes_from_ttl(self, data: str) -> List[Dict[str, str]]:
+        """Extract @prefix declarations from TTL content."""
+        import re
+        prefixes = []
+        # Match @prefix declarations: @prefix name: <uri> .
+        pattern = r'@prefix\s+([a-zA-Z0-9_-]*)\s*:\s*<([^>]+)>\s*\.'
+        for match in re.finditer(pattern, data):
+            prefix = match.group(1)
+            namespace = match.group(2)
+            prefixes.append({
+                "prefix": prefix if prefix else "(default)",
+                "namespace": namespace
+            })
+        # Sort by prefix name, with default first
+        prefixes.sort(key=lambda x: ("" if x["prefix"] == "(default)" else x["prefix"]))
+        return prefixes
+
     def get_ontology_metadata(self) -> Dict[str, str]:
         """Get ontology-level metadata."""
         metadata = {}
@@ -722,7 +746,14 @@ class OntologyManager:
     # ==================== ANNOTATION OPERATIONS ====================
 
     def add_annotation(self, subject: str, predicate: str, value: str, lang: str = None):
-        """Add an annotation to any resource."""
+        """Add an annotation to any resource.
+
+        Args:
+            subject: The resource name to annotate
+            predicate: Either a full URI, a common name (label, comment, etc.), or a local name
+            value: The annotation value
+            lang: Optional language tag
+        """
         subj_uri = self._uri(subject)
 
         # Map common annotation names to URIs
@@ -744,7 +775,11 @@ class OntologyManager:
             "deprecated": OWL.deprecated,
         }
 
-        pred_uri = annotation_predicates.get(predicate, self._uri(predicate))
+        # Check if predicate is a full URI
+        if predicate.startswith("http://") or predicate.startswith("https://"):
+            pred_uri = URIRef(predicate)
+        else:
+            pred_uri = annotation_predicates.get(predicate, self._uri(predicate))
 
         if lang:
             literal = Literal(value, lang=lang)
@@ -754,29 +789,88 @@ class OntologyManager:
         self.graph.add((subj_uri, pred_uri, literal))
 
     def get_annotations(self, subject: str) -> List[Dict[str, str]]:
-        """Get all annotations for a resource."""
+        """Get all annotations/predicates for a resource (like Protege shows)."""
         subj_uri = self._uri(subject)
         annotations = []
 
-        annotation_properties = [
-            RDFS.label, RDFS.comment, RDFS.seeAlso, RDFS.isDefinedBy,
-            SKOS.prefLabel, SKOS.altLabel, SKOS.definition, SKOS.example, SKOS.note,
-            DCTERMS.title, DCTERMS.description, DCTERMS.creator,
-            DCTERMS.contributor, DCTERMS.date,
-            OWL.deprecated
-        ]
+        # Get all predicates for this subject, excluding rdf:type, rdfs:subClassOf,
+        # rdfs:domain, rdfs:range, and other structural predicates
+        structural_predicates = {
+            RDF.type, RDFS.subClassOf, RDFS.subPropertyOf,
+            RDFS.domain, RDFS.range,
+            OWL.equivalentClass, OWL.equivalentProperty, OWL.disjointWith,
+            OWL.inverseOf, OWL.propertyChainAxiom,
+            OWL.onProperty, OWL.someValuesFrom, OWL.allValuesFrom,
+            OWL.hasValue, OWL.minCardinality, OWL.maxCardinality, OWL.cardinality,
+            OWL.unionOf, OWL.intersectionOf, OWL.complementOf, OWL.oneOf,
+            OWL.imports
+        }
 
-        for pred in annotation_properties:
-            for obj in self.graph.objects(subj_uri, pred):
-                ann = {
-                    "predicate": self._local_name(pred),
-                    "value": str(obj)
-                }
-                if hasattr(obj, 'language') and obj.language:
-                    ann["language"] = obj.language
-                annotations.append(ann)
+        for pred, obj in self.graph.predicate_objects(subj_uri):
+            # Skip structural predicates
+            if pred in structural_predicates:
+                continue
+            # Skip blank nodes (restrictions, etc.)
+            if isinstance(obj, BNode):
+                continue
 
+            ann = {
+                "predicate": self._local_name(pred),
+                "predicate_uri": str(pred),
+                "value": str(obj)
+            }
+            if hasattr(obj, 'language') and obj.language:
+                ann["language"] = obj.language
+            if hasattr(obj, 'datatype') and obj.datatype:
+                ann["datatype"] = self._local_name(obj.datatype)
+            annotations.append(ann)
+
+        # Sort by predicate name
+        annotations.sort(key=lambda x: x["predicate"])
         return annotations
+
+    def get_used_annotation_predicates(self) -> List[Dict[str, str]]:
+        """Get all unique annotation predicates used in the ontology."""
+        structural_predicates = {
+            RDF.type, RDFS.subClassOf, RDFS.subPropertyOf,
+            RDFS.domain, RDFS.range,
+            OWL.equivalentClass, OWL.equivalentProperty, OWL.disjointWith,
+            OWL.inverseOf, OWL.propertyChainAxiom,
+            OWL.onProperty, OWL.someValuesFrom, OWL.allValuesFrom,
+            OWL.hasValue, OWL.minCardinality, OWL.maxCardinality, OWL.cardinality,
+            OWL.unionOf, OWL.intersectionOf, OWL.complementOf, OWL.oneOf,
+            OWL.imports
+        }
+
+        predicates = {}
+        for subj, pred, obj in self.graph:
+            # Skip structural predicates
+            if pred in structural_predicates:
+                continue
+            # Skip blank node objects
+            if isinstance(obj, BNode):
+                continue
+            # Only include predicates with literal values (annotations)
+            if isinstance(obj, Literal) or isinstance(obj, URIRef):
+                pred_uri = str(pred)
+                if pred_uri not in predicates:
+                    predicates[pred_uri] = {
+                        "uri": pred_uri,
+                        "local_name": self._local_name(pred),
+                        "prefix": self._get_prefix_for_uri(pred_uri)
+                    }
+
+        # Sort by local name
+        result = sorted(predicates.values(), key=lambda x: x["local_name"].lower())
+        return result
+
+    def _get_prefix_for_uri(self, uri: str) -> str:
+        """Get the prefix for a URI if bound in the graph."""
+        for prefix, namespace in self.graph.namespaces():
+            ns_str = str(namespace)
+            if uri.startswith(ns_str):
+                return prefix if prefix else "(default)"
+        return ""
 
     def delete_annotation(self, subject: str, predicate: str, value: str = None):
         """Delete an annotation from a resource."""
@@ -1086,12 +1180,24 @@ class OntologyManager:
 
     def load_from_file(self, file_path: str, format: str = "turtle"):
         """Load ontology from a file."""
+        # Read file content to extract prefixes if TTL format
+        if format == "turtle":
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            self._loaded_prefixes = self._extract_prefixes_from_ttl(content)
+        else:
+            self._loaded_prefixes = []
         self.graph = Graph()
         self.graph.parse(file_path, format=format)
         self._update_namespace_from_graph()
 
     def load_from_string(self, data: str, format: str = "turtle"):
         """Load ontology from a string."""
+        # Extract prefixes if TTL format
+        if format == "turtle":
+            self._loaded_prefixes = self._extract_prefixes_from_ttl(data)
+        else:
+            self._loaded_prefixes = []
         self.graph = Graph()
         self.graph.parse(data=data, format=format)
         self._update_namespace_from_graph()
@@ -1103,10 +1209,34 @@ class OntologyManager:
             if isinstance(ont, URIRef):
                 self.ontology_uri = ont
                 uri_str = str(ont)
-                if uri_str.endswith("#"):
+                if uri_str.endswith("#") or uri_str.endswith("/"):
                     self.base_uri = uri_str
                 else:
-                    self.base_uri = uri_str + "#"
+                    # Check what separator is used in actual resources
+                    # Look for classes/properties to determine the pattern
+                    sample_uri = None
+                    for s in self.graph.subjects(RDF.type, OWL.Class):
+                        if isinstance(s, URIRef):
+                            sample_uri = str(s)
+                            break
+                    if not sample_uri:
+                        for s in self.graph.subjects(RDF.type, OWL.ObjectProperty):
+                            if isinstance(s, URIRef):
+                                sample_uri = str(s)
+                                break
+
+                    # Determine separator based on sample URI
+                    if sample_uri and uri_str in sample_uri:
+                        # Extract what comes after the ontology URI
+                        remainder = sample_uri[len(uri_str):]
+                        if remainder.startswith("/"):
+                            self.base_uri = uri_str + "/"
+                        elif remainder.startswith("#"):
+                            self.base_uri = uri_str + "#"
+                        else:
+                            self.base_uri = uri_str + "#"
+                    else:
+                        self.base_uri = uri_str + "#"
                 self.namespace = Namespace(self.base_uri)
                 break
 

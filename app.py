@@ -100,6 +100,94 @@ def display_flash_message():
         st.session_state.flash_message = None
 
 
+def format_label_name(name: str, label: str) -> str:
+    """Format display string as 'Label (name)' if label exists and differs from name."""
+    if label and label != name:
+        return f"{label} ({name})"
+    return name
+
+
+def build_class_options(classes: list, include_none: bool = False) -> tuple:
+    """Build class dropdown options with 'Label (name)' format, sorted by display text.
+
+    Returns:
+        tuple: (display_options, name_lookup_dict)
+    """
+    options = []
+    lookup = {}
+
+    # Build display strings and sort
+    items = []
+    for c in classes:
+        display = format_label_name(c["name"], c.get("label"))
+        items.append(display)
+        lookup[display] = c["name"]
+
+    # Sort alphabetically by display text (case-insensitive)
+    items.sort(key=lambda x: x.lower())
+
+    if include_none:
+        options.append("None")
+        lookup["None"] = None
+
+    options.extend(items)
+    return options, lookup
+
+
+def build_property_options(properties: list, include_none: bool = False) -> tuple:
+    """Build property dropdown options with 'Label (name)' format, sorted by display text.
+
+    Returns:
+        tuple: (display_options, name_lookup_dict)
+    """
+    options = []
+    lookup = {}
+
+    # Build display strings and sort
+    items = []
+    for p in properties:
+        display = format_label_name(p["name"], p.get("label"))
+        items.append(display)
+        lookup[display] = p["name"]
+
+    # Sort alphabetically by display text (case-insensitive)
+    items.sort(key=lambda x: x.lower())
+
+    if include_none:
+        options.append("None")
+        lookup["None"] = None
+
+    options.extend(items)
+    return options, lookup
+
+
+def build_individual_options(individuals: list, include_none: bool = False) -> tuple:
+    """Build individual dropdown options with 'Label (name)' format, sorted by display text.
+
+    Returns:
+        tuple: (display_options, name_lookup_dict)
+    """
+    options = []
+    lookup = {}
+
+    # Build display strings and sort
+    items = []
+    for i in individuals:
+        display = format_label_name(i["name"], i.get("label"))
+        items.append(display)
+        lookup[display] = i["name"]
+
+    # Sort alphabetically by display text (case-insensitive)
+    items.sort(key=lambda x: x.lower())
+
+    if include_none:
+        options.append("None")
+        lookup["None"] = None
+
+    options.extend(items)
+    return options, lookup
+
+
 def render_dashboard():
     """Render the dashboard/overview page."""
     st.header("Dashboard")
@@ -157,6 +245,19 @@ def render_dashboard():
                 ont.add_import(new_import)
                 show_message(f"Import added: {new_import}", "success")
                 st.rerun()
+
+    # Prefixes section
+    st.subheader("Namespace Prefixes")
+    prefixes = ont.get_prefixes()
+
+    if prefixes:
+        prefix_data = {"Prefix": [], "Namespace": []}
+        for p in prefixes:
+            prefix_data["Prefix"].append(p["prefix"])
+            prefix_data["Namespace"].append(p["namespace"])
+        st.dataframe(prefix_data, width="stretch", hide_index=True)
+    else:
+        st.info("No prefixes defined.")
 
     st.divider()
 
@@ -228,11 +329,12 @@ def render_classes():
             # Class hierarchy view
             st.subheader("Class Hierarchy")
 
-            # Find root classes (no parents)
-            root_classes = [c for c in classes if not c["parents"]]
+            # Sort classes by display name for consistent ordering
+            sorted_classes = sorted(classes, key=lambda c: format_label_name(c['name'], c.get('label')).lower())
 
-            for cls in classes:
-                with st.expander(f"📦 **{cls['name']}**" + (f" - {cls['label']}" if cls['label'] else "")):
+            for cls in sorted_classes:
+                display_name = format_label_name(cls['name'], cls.get('label'))
+                with st.expander(f"📦 **{display_name}**"):
                     col_info, col_actions = st.columns([4, 1])
 
                     with col_info:
@@ -297,7 +399,7 @@ def render_classes():
             # Table view
             st.subheader("All Classes")
             class_data = []
-            for c in classes:
+            for c in sorted_classes:
                 class_data.append({
                     "Name": c["name"],
                     "Label": c["label"],
@@ -314,17 +416,18 @@ def render_classes():
             name = st.text_input("Class Name *", help="Local name for the class (e.g., 'Person')")
             label = st.text_input("Label", help="Human-readable label")
             comment = st.text_area("Comment", help="Description of the class")
-            parent = st.selectbox("Parent Class", options=["None"] + class_names,
+            parent_options, parent_lookup = build_class_options(classes, include_none=True)
+            parent_display = st.selectbox("Parent Class", options=parent_options,
                                  help="Select a parent class for hierarchy")
 
             submitted = st.form_submit_button("Add Class")
             if submitted:
                 if not name:
                     show_message("Class name is required!", "error")
-                elif name in class_names:
+                elif name in [c["name"] for c in classes]:
                     show_message(f"Class '{name}' already exists!", "error")
                 else:
-                    parent_val = parent if parent != "None" else None
+                    parent_val = parent_lookup.get(parent_display)
                     ont.add_class(name, parent=parent_val, label=label, comment=comment)
                     show_message(f"Class '{name}' added successfully!", "success")
                     st.rerun()
@@ -335,7 +438,10 @@ def render_classes():
         if not classes:
             st.info("No classes to edit.")
         else:
-            selected_class = st.selectbox("Select Class", options=class_names, key="edit_class_select")
+            # Build options with Label (name) format
+            class_options, class_lookup = build_class_options(classes)
+            selected_display = st.selectbox("Select Class", options=class_options, key="edit_class_select")
+            selected_class = class_lookup.get(selected_display)
 
             if selected_class:
                 class_info = next((c for c in classes if c["name"] == selected_class), None)
@@ -1096,16 +1202,29 @@ def render_annotations():
     data_props = ont.get_data_properties()
     individuals = ont.get_individuals()
 
-    # Combine all resources
+    # Build resources with labels for display: "Label (name)" format
+    def format_resource(name, label, res_type):
+        if label and label != name:
+            return f"{label} ({name})"
+        return name
+
+    # Combine all resources with their labels
     all_resources = []
     for c in classes:
-        all_resources.append({"name": c["name"], "type": "Class"})
+        display = format_resource(c["name"], c.get("label"), "Class")
+        all_resources.append({"name": c["name"], "label": c.get("label"), "type": "Class", "display": display})
     for p in object_props:
-        all_resources.append({"name": p["name"], "type": "Object Property"})
+        display = format_resource(p["name"], p.get("label"), "Object Property")
+        all_resources.append({"name": p["name"], "label": p.get("label"), "type": "Object Property", "display": display})
     for p in data_props:
-        all_resources.append({"name": p["name"], "type": "Data Property"})
+        display = format_resource(p["name"], p.get("label"), "Data Property")
+        all_resources.append({"name": p["name"], "label": p.get("label"), "type": "Data Property", "display": display})
     for i in individuals:
-        all_resources.append({"name": i["name"], "type": "Individual"})
+        display = format_resource(i["name"], i.get("label"), "Individual")
+        all_resources.append({"name": i["name"], "label": i.get("label"), "type": "Individual", "display": display})
+
+    # Sort all resources by display text
+    all_resources.sort(key=lambda r: r["display"].lower())
 
     tab1, tab2 = st.tabs(["View Annotations", "Add Annotation"])
 
@@ -1113,32 +1232,53 @@ def render_annotations():
         if not all_resources:
             st.info("No resources to annotate. Create classes, properties, or individuals first.")
         else:
-            selected = st.selectbox(
-                "Select Resource",
-                options=[f"{r['name']} ({r['type']})" for r in all_resources],
-                key="view_annotations_select"
-            )
+            # Filter by resource type
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                filter_types = ["All"] + list(set(r["type"] for r in all_resources))
+                selected_type = st.selectbox("Filter by Type", options=filter_types, key="filter_type")
+
+            # Filter resources based on selection
+            if selected_type == "All":
+                filtered_resources = all_resources
+            else:
+                filtered_resources = [r for r in all_resources if r["type"] == selected_type]
+
+            with col2:
+                if filtered_resources:
+                    selected = st.selectbox(
+                        "Select Resource",
+                        options=[r["display"] for r in filtered_resources],
+                        key="view_annotations_select"
+                    )
+                else:
+                    selected = None
+                    st.info(f"No {selected_type} resources found.")
 
             if selected:
-                resource_name = selected.split(" (")[0]
-                annotations = ont.get_annotations(resource_name)
+                # Find the actual resource name from display string
+                resource = next((r for r in filtered_resources if r["display"] == selected), None)
+                if resource:
+                    resource_name = resource["name"]
+                    annotations = ont.get_annotations(resource_name)
 
-                if not annotations:
-                    st.info(f"No annotations found for '{resource_name}'")
-                else:
-                    st.subheader(f"Annotations for {resource_name}")
-                    for ann in annotations:
-                        col1, col2, col3 = st.columns([2, 4, 1])
-                        with col1:
-                            st.write(f"**{ann['predicate']}**")
-                        with col2:
-                            lang_str = f" @{ann['language']}" if ann.get('language') else ""
-                            st.write(f"{ann['value']}{lang_str}")
-                        with col3:
-                            if st.button("🗑️", key=f"del_ann_{ann['predicate']}_{ann['value'][:10]}"):
-                                ont.delete_annotation(resource_name, ann['predicate'], ann['value'])
-                                show_message("Annotation deleted!", "success")
-                                st.rerun()
+                    if not annotations:
+                        st.info(f"No annotations found for '{resource_name}'")
+                    else:
+                        st.subheader(f"Annotations for {selected}")
+                        for ann in annotations:
+                            col1, col2, col3 = st.columns([2, 4, 1])
+                            with col1:
+                                st.write(f"**{ann['predicate']}**")
+                            with col2:
+                                lang_str = f" @{ann['language']}" if ann.get('language') else ""
+                                dtype_str = f" ({ann['datatype']})" if ann.get('datatype') else ""
+                                st.write(f"{ann['value']}{lang_str}{dtype_str}")
+                            with col3:
+                                if st.button("🗑️", key=f"del_ann_{resource_name}_{ann['predicate']}_{hash(ann['value'])}"):
+                                    ont.delete_annotation(resource_name, ann['predicate'], ann['value'])
+                                    show_message("Annotation deleted!", "success")
+                                    st.rerun()
 
     with tab2:
         st.subheader("Add Annotation")
@@ -1146,19 +1286,58 @@ def render_annotations():
         if not all_resources:
             st.warning("Please create at least one resource first.")
         else:
-            with st.form("add_annotation_form"):
-                selected = st.selectbox(
-                    "Select Resource",
-                    options=[f"{r['name']} ({r['type']})" for r in all_resources]
-                )
+            # Get predicates used in the ontology
+            used_predicates = ont.get_used_annotation_predicates()
 
-                annotation_types = [
-                    "label", "comment", "seeAlso", "isDefinedBy",
-                    "prefLabel", "altLabel", "definition", "example", "note",
-                    "title", "description", "creator", "contributor", "date",
-                    "deprecated"
-                ]
-                predicate = st.selectbox("Annotation Type", options=annotation_types)
+            # Build predicate options: standard ones + used from ontology
+            standard_predicates = [
+                {"local_name": "label", "uri": "label", "prefix": "rdfs"},
+                {"local_name": "comment", "uri": "comment", "prefix": "rdfs"},
+                {"local_name": "seeAlso", "uri": "seeAlso", "prefix": "rdfs"},
+                {"local_name": "isDefinedBy", "uri": "isDefinedBy", "prefix": "rdfs"},
+                {"local_name": "prefLabel", "uri": "prefLabel", "prefix": "skos"},
+                {"local_name": "altLabel", "uri": "altLabel", "prefix": "skos"},
+                {"local_name": "definition", "uri": "definition", "prefix": "skos"},
+                {"local_name": "example", "uri": "example", "prefix": "skos"},
+                {"local_name": "note", "uri": "note", "prefix": "skos"},
+                {"local_name": "title", "uri": "title", "prefix": "dcterms"},
+                {"local_name": "description", "uri": "description", "prefix": "dcterms"},
+                {"local_name": "creator", "uri": "creator", "prefix": "dcterms"},
+                {"local_name": "contributor", "uri": "contributor", "prefix": "dcterms"},
+                {"local_name": "date", "uri": "date", "prefix": "dcterms"},
+                {"local_name": "deprecated", "uri": "deprecated", "prefix": "owl"},
+            ]
+
+            # Combine and deduplicate (used predicates take priority as they have full URIs)
+            predicate_options = []
+            predicate_lookup = {}  # display -> uri
+
+            # Add used predicates first (from ontology)
+            seen_names = set()
+            for p in used_predicates:
+                display = f"{p['prefix']}:{p['local_name']}" if p['prefix'] else p['local_name']
+                if display not in seen_names:
+                    predicate_options.append(display)
+                    predicate_lookup[display] = p['uri']
+                    seen_names.add(display)
+                    seen_names.add(p['local_name'])  # Also mark local name as seen
+
+            # Add standard predicates that aren't already included
+            for p in standard_predicates:
+                display = f"{p['prefix']}:{p['local_name']}"
+                if p['local_name'] not in seen_names and display not in seen_names:
+                    predicate_options.append(display)
+                    predicate_lookup[display] = p['uri']  # Use short name for standard ones
+
+            # Sort options
+            predicate_options.sort(key=lambda x: x.lower())
+
+            with st.form("add_annotation_form"):
+                # Use display format with label
+                resource_options = [f"{r['display']} [{r['type']}]" for r in all_resources]
+                selected = st.selectbox("Select Resource", options=resource_options)
+
+                predicate_display = st.selectbox("Annotation Type", options=predicate_options)
 
                 value = st.text_area("Value")
 
@@ -1169,8 +1348,11 @@ def render_annotations():
                     if not value:
                         show_message("Value is required!", "error")
                     else:
-                        resource_name = selected.split(" (")[0]
-                        ont.add_annotation(resource_name, predicate, value,
+                        # Find the resource by matching the option string
+                        idx = resource_options.index(selected)
+                        resource_name = all_resources[idx]["name"]
+                        predicate_uri = predicate_lookup.get(predicate_display, predicate_display)
+                        ont.add_annotation(resource_name, predicate_uri, value,
                                          lang=language if language else None)
                         show_message("Annotation added!", "success")
                         st.rerun()
