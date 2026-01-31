@@ -2,6 +2,8 @@
 
 A Python-based web application for building, editing, maintaining, importing, and exporting OWL ontologies using the Turtle (TTL) format.
 
+**Try it now:** The application is publicly available at [orionbelt.streamlit.app](https://orionbelt.streamlit.app/)
+
 ## Features
 
 ### Core Functionality
