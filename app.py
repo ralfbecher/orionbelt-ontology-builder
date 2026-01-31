@@ -1817,8 +1817,19 @@ def render_visualization():
         with col3:
             render_graph = st.button("Render Graph", type="primary", use_container_width=True)
 
+        # Class filter
+        all_class_names = [c["name"] for c in classes] if classes else []
+        with st.expander("Filter Classes", expanded=False):
+            selected_classes = st.multiselect(
+                "Select classes to display",
+                options=all_class_names,
+                default=all_class_names,
+                help="Choose which classes to show in the graph"
+            )
+
         # Store graph settings in session state for caching
-        graph_key = f"{show_classes}_{show_properties}_{show_data_props}_{show_annotations}_{show_individuals}_{height}_{node_spacing}"
+        selected_classes_key = "_".join(sorted(selected_classes)) if selected_classes else "none"
+        graph_key = f"{show_classes}_{show_properties}_{show_data_props}_{show_annotations}_{show_individuals}_{height}_{node_spacing}_{hash(selected_classes_key)}"
         if "last_graph_key" not in st.session_state:
             st.session_state.last_graph_key = None
             st.session_state.last_graph_html = None
@@ -1845,7 +1856,7 @@ def render_visualization():
             net = Network(height=f"{height}px", width="100%", bgcolor="#ffffff",
                          font_color="#f0f0f0", directed=True)
 
-            # Fast layout - no server-side stabilization, runs in browser
+            # Fast layout - disable stabilization completely to avoid hanging
             net.set_options(f'''
             var options = {{
                 "physics": {{
@@ -1857,7 +1868,9 @@ def render_visualization():
                         "springConstant": 0.04,
                         "avoidOverlap": 0.3
                     }},
-                    "stabilization": false
+                    "stabilization": {{
+                        "enabled": false
+                    }}
                 }},
                 "nodes": {{
                     "font": {{
@@ -1881,12 +1894,20 @@ def render_visualization():
             }}
             ''')
 
-            # Build set of class names for edge validation
-            class_names = {c["name"] for c in classes} if classes else set()
+            # Limit total nodes to prevent browser hanging
+            max_nodes = 500
+            node_count = 0
 
-            # Add classes as nodes
-            if show_classes and classes:
+            # Build set of class names for edge validation (only selected classes)
+            class_names = set(selected_classes) if selected_classes else set()
+
+            # Add classes as nodes (only selected classes)
+            if show_classes and selected_classes:
                 for cls in classes:
+                    if node_count >= max_nodes:
+                        break
+                    if cls["name"] not in selected_classes:
+                        continue
                     label = cls["label"] if cls["label"] else cls["name"]
                     title = f"Class: {cls['name']}"
                     if cls["label"]:
@@ -1897,6 +1918,7 @@ def render_visualization():
                     net.add_node(cls["name"], label=label, title=title,
                                color={"background": "#4CAF50", "border": "#388E3C"},
                                shape="box", size=25)
+                    node_count += 1
 
                 # Add class hierarchy edges (only if parent node exists in graph)
                 for cls in classes:
@@ -1921,9 +1943,11 @@ def render_visualization():
                                    color="#2196F3", arrows="to")
 
             # Add data properties (only those connected to displayed classes)
-            if show_data_props and data_props and show_classes:
+            if show_data_props and data_props and show_classes and node_count < max_nodes:
                 added_datatypes = set()
                 for prop in data_props:
+                    if node_count >= max_nodes:
+                        break
                     # Only show if domain exists as a class node
                     if not prop["domain"] or prop["domain"] not in class_names:
                         continue
@@ -1940,6 +1964,7 @@ def render_visualization():
                     net.add_node(f"dprop_{prop['name']}", label=label, title=title,
                                color={"background": "#9C27B0", "border": "#7B1FA2"},
                                shape="ellipse", size=12, font={"color": "#f0f0f0"})
+                    node_count += 1
 
                     # Connect to domain class
                     net.add_edge(prop["domain"], f"dprop_{prop['name']}",
@@ -1947,13 +1972,14 @@ def render_visualization():
                                color="#CE93D8", arrows="to", dashes=True)
 
                     # Add range as a literal type node
-                    if prop["range"] and prop["range"] not in added_datatypes:
+                    if prop["range"] and prop["range"] not in added_datatypes and node_count < max_nodes:
                         range_node_id = f"dtype_{prop['range']}"
                         net.add_node(range_node_id, label=prop["range"],
                                    title=f"Datatype: {prop['range']}",
                                    color={"background": "#607D8B", "border": "#455A64"},
                                    shape="box", size=10, font={"color": "#f0f0f0"})
                         added_datatypes.add(prop["range"])
+                        node_count += 1
 
                     if prop["range"]:
                         net.add_edge(f"dprop_{prop['name']}", f"dtype_{prop['range']}",
@@ -1961,8 +1987,10 @@ def render_visualization():
                                    color="#CE93D8", arrows="to", dashes=True)
 
             # Add individuals
-            if show_individuals and individuals:
+            if show_individuals and individuals and node_count < max_nodes:
                 for ind in individuals:
+                    if node_count >= max_nodes:
+                        break
                     label = ind["label"] if ind["label"] else ind["name"]
                     title = f"Individual: {ind['name']}"
                     if ind["classes"]:
@@ -1971,6 +1999,7 @@ def render_visualization():
                     net.add_node(f"ind_{ind['name']}", label=label, title=title,
                                color={"background": "#FF9800", "border": "#F57C00"},
                                shape="dot", size=20)
+                    node_count += 1
 
                     # Connect to classes
                     if show_classes:
@@ -1998,18 +2027,17 @@ def render_visualization():
                                        color="#F44336", arrows="to")
 
             # Add annotations for classes and individuals
-            if show_annotations:
+            if show_annotations and node_count < max_nodes:
                 annotation_counter = 0
-                max_annotations = 100  # Limit to prevent hanging
                 # Annotations for classes
                 if show_classes and classes:
                     for cls in classes:
-                        if annotation_counter >= max_annotations:
+                        if node_count >= max_nodes:
                             break
                         try:
                             annotations = ont.get_annotations(cls["name"])
                             for ann in annotations:
-                                if annotation_counter >= max_annotations:
+                                if node_count >= max_nodes:
                                     break
                                 # Skip label and comment as they're already shown in tooltip
                                 if ann["predicate"] in ["label", "comment"]:
@@ -2022,6 +2050,7 @@ def render_visualization():
                                            title=f"{ann['predicate']}: {ann['value']}",
                                            color={"background": "#795548", "border": "#5D4037"},
                                            shape="box", size=8, font={"size": 10, "color": "#f0f0f0"})
+                                node_count += 1
                                 net.add_edge(cls["name"], ann_id,
                                            title=f"Annotation: {ann['predicate']}",
                                            color="#A1887F", arrows="to", dashes=True)
@@ -2031,12 +2060,12 @@ def render_visualization():
                 # Annotations for individuals
                 if show_individuals and individuals:
                     for ind in individuals:
-                        if annotation_counter >= max_annotations:
+                        if node_count >= max_nodes:
                             break
                         try:
                             annotations = ont.get_annotations(ind["name"])
                             for ann in annotations:
-                                if annotation_counter >= max_annotations:
+                                if node_count >= max_nodes:
                                     break
                                 if ann["predicate"] in ["label", "comment"]:
                                     continue
@@ -2047,6 +2076,7 @@ def render_visualization():
                                            title=f"{ann['predicate']}: {ann['value']}",
                                            color={"background": "#795548", "border": "#5D4037"},
                                            shape="box", size=8, font={"size": 10, "color": "#f0f0f0"})
+                                node_count += 1
                                 net.add_edge(f"ind_{ind['name']}", ann_id,
                                            title=f"Annotation: {ann['predicate']}",
                                            color="#A1887F", arrows="to", dashes=True)
