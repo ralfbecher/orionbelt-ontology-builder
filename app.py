@@ -2092,9 +2092,19 @@ def render_visualization():
                         html_content = f.read()
                     os.unlink(tmp.name)
 
-                # Inject script to stop physics after 1 second
-                stop_physics_script = """
+                # Inject CSS to hide progress bar and script to stop physics
+                inject_code = """
+                <style>
+                #loadingBar { display: none !important; }
+                .vis-network .vis-manipulation { display: none !important; }
+                </style>
                 <script>
+                // Hide progress bar immediately
+                document.addEventListener('DOMContentLoaded', function() {
+                    var loadingBar = document.getElementById('loadingBar');
+                    if (loadingBar) loadingBar.style.display = 'none';
+                });
+                // Stop physics after 1 second
                 setTimeout(function() {
                     if (typeof network !== 'undefined') {
                         network.setOptions({ physics: { enabled: false } });
@@ -2103,7 +2113,7 @@ def render_visualization():
                 </script>
                 </body>
                 """
-                html_content = html_content.replace("</body>", stop_physics_script)
+                html_content = html_content.replace("</body>", inject_code)
 
                 # Cache the HTML for reuse
                 st.session_state.last_graph_key = graph_key
