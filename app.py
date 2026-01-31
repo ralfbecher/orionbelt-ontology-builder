@@ -1823,18 +1823,15 @@ def render_visualization():
             st.session_state.last_graph_key = None
             st.session_state.last_graph_html = None
 
-        # Use cached graph if available and Render not clicked
+        # Auto-render when settings change or button clicked
         has_cache = st.session_state.last_graph_html is not None
         settings_changed = st.session_state.last_graph_key != graph_key
-        should_render = render_graph or not has_cache
+        should_render = render_graph or settings_changed or not has_cache
 
-        if has_cache and not render_graph:
-            # Show cached version
+        if has_cache and not should_render:
+            # Show cached version only if nothing changed
             st.components.v1.html(st.session_state.last_graph_html, height=height + 50, scrolling=True)
             st.caption("🟢 Classes • 🔵 Obj Props (edges) • 🟣 Data Props • 🟠 Individuals • 🟤 Annotations | Drag nodes • Scroll to zoom • Hover for details")
-            if settings_changed:
-                st.info("Settings changed. Click **Render Graph** to update.")
-            should_render = False
 
         if should_render:
             # Build the graph
@@ -1923,9 +1920,14 @@ def render_visualization():
                                    title=title,
                                    color="#2196F3", arrows="to")
 
-            # Add data properties
-            if show_data_props and data_props:
+            # Add data properties (only those connected to displayed classes)
+            if show_data_props and data_props and show_classes:
+                added_datatypes = set()
                 for prop in data_props:
+                    # Only show if domain exists as a class node
+                    if not prop["domain"] or prop["domain"] not in class_names:
+                        continue
+
                     label = prop["label"] if prop["label"] else prop["name"]
                     title = f"Data Property: {prop['name']}"
                     if prop["domain"]:
@@ -1937,26 +1939,24 @@ def render_visualization():
 
                     net.add_node(f"dprop_{prop['name']}", label=label, title=title,
                                color={"background": "#9C27B0", "border": "#7B1FA2"},
-                               shape="ellipse", size=12)
+                               shape="ellipse", size=12, font={"color": "#f0f0f0"})
 
-                    # Connect to domain class if it exists
-                    if prop["domain"] and show_classes and prop["domain"] in class_names:
-                        net.add_edge(prop["domain"], f"dprop_{prop['name']}",
-                                   title=f"Domain:\n{prop['name']} has domain {prop['domain']}",
-                                   color="#CE93D8", arrows="to", dashes=True)
+                    # Connect to domain class
+                    net.add_edge(prop["domain"], f"dprop_{prop['name']}",
+                               title=f"Domain:\n{prop['name']} has domain {prop['domain']}",
+                               color="#CE93D8", arrows="to", dashes=True)
 
                     # Add range as a literal type node
-                    if prop["range"]:
+                    if prop["range"] and prop["range"] not in added_datatypes:
                         range_node_id = f"dtype_{prop['range']}"
-                        # Only add the datatype node once
-                        try:
-                            net.add_node(range_node_id, label=prop["range"],
-                                       title=f"Datatype: {prop['range']}",
-                                       color={"background": "#607D8B", "border": "#455A64"},
-                                       shape="box", size=10)
-                        except:
-                            pass  # Node already exists
-                        net.add_edge(f"dprop_{prop['name']}", range_node_id,
+                        net.add_node(range_node_id, label=prop["range"],
+                                   title=f"Datatype: {prop['range']}",
+                                   color={"background": "#607D8B", "border": "#455A64"},
+                                   shape="box", size=10, font={"color": "#f0f0f0"})
+                        added_datatypes.add(prop["range"])
+
+                    if prop["range"]:
+                        net.add_edge(f"dprop_{prop['name']}", f"dtype_{prop['range']}",
                                    title=f"Range:\n{prop['name']} has range {prop['range']}",
                                    color="#CE93D8", arrows="to", dashes=True)
 
