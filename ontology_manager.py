@@ -810,9 +810,13 @@ class OntologyManager:
             if isinstance(obj, BNode):
                 continue
 
+            pred_uri = str(pred)
+            prefix = self._get_prefix_for_uri(pred_uri)
+            local_name = self._local_name(pred)
             ann = {
-                "predicate": self._local_name(pred),
-                "predicate_uri": str(pred),
+                "predicate": local_name,
+                "predicate_uri": pred_uri,
+                "predicate_prefixed": f"{prefix}:{local_name}" if prefix else local_name,
                 "value": str(obj)
             }
             if hasattr(obj, 'language') and obj.language:

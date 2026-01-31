@@ -1276,7 +1276,9 @@ def render_annotations():
                         for ann in annotations:
                             col1, col2, col3 = st.columns([2, 4, 1])
                             with col1:
-                                st.write(f"**{ann['predicate']}**")
+                                # Show prefixed predicate (e.g., rdfs:label, skos:prefLabel)
+                                predicate_display = ann.get('predicate_prefixed', ann['predicate'])
+                                st.write(f"**{predicate_display}**")
                             with col2:
                                 lang_str = f" @{ann['language']}" if ann.get('language') else ""
                                 dtype_str = f" ({ann['datatype']})" if ann.get('datatype') else ""
@@ -2044,15 +2046,17 @@ def render_visualization():
                                     continue
                                 annotation_counter += 1
                                 ann_id = f"ann_{annotation_counter}"
+                                # Use prefixed predicate name
+                                pred_display = ann.get("predicate_prefixed", ann["predicate"])
                                 # Truncate long values
                                 value_display = ann["value"][:30] + "..." if len(ann["value"]) > 30 else ann["value"]
                                 net.add_node(ann_id, label=value_display,
-                                           title=f"{ann['predicate']}: {ann['value']}",
+                                           title=f"{pred_display}: {ann['value']}",
                                            color={"background": "#795548", "border": "#5D4037"},
                                            shape="box", size=8, font={"size": 10, "color": "#f0f0f0"})
                                 node_count += 1
                                 net.add_edge(cls["name"], ann_id,
-                                           title=f"Annotation: {ann['predicate']}",
+                                           title=f"Annotation: {pred_display}",
                                            color="#A1887F", arrows="to", dashes=True)
                         except Exception:
                             pass  # Skip problematic annotations
@@ -2071,14 +2075,15 @@ def render_visualization():
                                     continue
                                 annotation_counter += 1
                                 ann_id = f"ann_{annotation_counter}"
+                                pred_display = ann.get("predicate_prefixed", ann["predicate"])
                                 value_display = ann["value"][:30] + "..." if len(ann["value"]) > 30 else ann["value"]
                                 net.add_node(ann_id, label=value_display,
-                                           title=f"{ann['predicate']}: {ann['value']}",
+                                           title=f"{pred_display}: {ann['value']}",
                                            color={"background": "#795548", "border": "#5D4037"},
                                            shape="box", size=8, font={"size": 10, "color": "#f0f0f0"})
                                 node_count += 1
                                 net.add_edge(f"ind_{ind['name']}", ann_id,
-                                           title=f"Annotation: {ann['predicate']}",
+                                           title=f"Annotation: {pred_display}",
                                            color="#A1887F", arrows="to", dashes=True)
                         except Exception:
                             pass  # Skip problematic annotations
