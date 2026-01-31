@@ -4,7 +4,6 @@ and managing OWL ontologies.
 """
 
 import streamlit as st
-from ontology_manager import OntologyManager
 import json
 
 # Page configuration
@@ -65,10 +64,19 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+@st.cache_resource
+def get_ontology_manager_class():
+    """Lazy load the OntologyManager class."""
+    from ontology_manager import OntologyManager
+    return OntologyManager
+
+
 def init_session_state():
     """Initialize session state variables."""
     if "ontology" not in st.session_state:
-        st.session_state.ontology = OntologyManager()
+        with st.spinner("Loading ontology engine..."):
+            OntologyManager = get_ontology_manager_class()
+            st.session_state.ontology = OntologyManager()
     if "messages" not in st.session_state:
         st.session_state.messages = []
     if "flash_message" not in st.session_state:
@@ -1769,6 +1777,7 @@ def render_visualization():
     ont = st.session_state.ontology
     classes = ont.get_classes()
     object_props = ont.get_object_properties()
+    data_props = ont.get_data_properties()
     individuals = ont.get_individuals()
 
     stats = ont.get_statistics()
@@ -1782,160 +1791,280 @@ def render_visualization():
     with tab1:
         st.subheader("Interactive Ontology Graph")
 
-        # Graph options - all in one row
-        col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 2, 1])
+        # Graph options - row 1: what to show
+        col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
             show_classes = st.checkbox("Classes", value=True)
         with col2:
-            show_properties = st.checkbox("Properties", value=True)
+            show_properties = st.checkbox("Obj Props", value=True)
         with col3:
-            show_individuals = st.checkbox("Individuals", value=True)
+            show_data_props = st.checkbox("Data Props", value=False)
         with col4:
-            height = st.slider("Height", 600, 1000, 800, label_visibility="collapsed")
+            show_annotations = st.checkbox("Annotations", value=False)
         with col5:
-            physics = st.checkbox("Physics", value=True)
+            show_individuals = st.checkbox("Individuals", value=False)
 
-        # Build the graph
-        from pyvis.network import Network
-        import tempfile
-        import os
+        # Graph options - row 2: layout controls
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col1:
+            height = st.slider("Graph Height", 400, 1200, 700, step=100)
+        with col2:
+            node_spacing = st.slider(
+                "Node Spacing",
+                50, 300, 150,
+                help="Distance between nodes. Increase for less overlap."
+            )
+        with col3:
+            render_graph = st.button("Render Graph", type="primary", use_container_width=True)
 
-        net = Network(height=f"{height}px", width="100%", bgcolor="#ffffff",
-                     font_color="#cccccc", directed=True)
+        # Store graph settings in session state for caching
+        graph_key = f"{show_classes}_{show_properties}_{show_data_props}_{show_annotations}_{show_individuals}_{height}_{node_spacing}"
+        if "last_graph_key" not in st.session_state:
+            st.session_state.last_graph_key = None
+            st.session_state.last_graph_html = None
 
-        # Configure physics and node defaults
-        if physics:
-            net.barnes_hut(gravity=-3000, central_gravity=0.3,
-                         spring_length=100, spring_strength=0.05)
-        else:
-            net.toggle_physics(False)
+        # Use cached graph if available and Render not clicked
+        has_cache = st.session_state.last_graph_html is not None
+        settings_changed = st.session_state.last_graph_key != graph_key
+        should_render = render_graph or not has_cache
 
-        # Set default node and edge options
-        net.set_options('''
-        var options = {
-            "nodes": {
-                "font": {
-                    "color": "#e0e0e0",
-                    "size": 14
-                }
-            },
-            "edges": {
-                "font": {
-                    "color": "#666666",
-                    "size": 8,
-                    "align": "middle",
-                    "background": "white"
-                },
-                "smooth": {
-                    "type": "continuous"
-                }
-            }
-        }
-        ''')
+        if has_cache and not render_graph:
+            # Show cached version
+            st.components.v1.html(st.session_state.last_graph_html, height=height + 50, scrolling=True)
+            st.caption("🟢 Classes • 🔵 Obj Props (edges) • 🟣 Data Props • 🟠 Individuals • 🟤 Annotations | Drag nodes • Scroll to zoom • Hover for details")
+            if settings_changed:
+                st.info("Settings changed. Click **Render Graph** to update.")
+            should_render = False
 
-        # Build set of class names for edge validation
-        class_names = {c["name"] for c in classes} if classes else set()
+        if should_render:
+            # Build the graph
+            from pyvis.network import Network
+            import tempfile
+            import os
 
-        # Add classes as nodes
-        if show_classes and classes:
-            for cls in classes:
-                label = cls["label"] if cls["label"] else cls["name"]
-                title = f"Class: {cls['name']}"
-                if cls["label"]:
-                    title += f"\nLabel: {cls['label']}"
-                if cls["comment"]:
-                    title += f"\nComment: {cls['comment'][:100]}"
+            net = Network(height=f"{height}px", width="100%", bgcolor="#ffffff",
+                         font_color="#f0f0f0", directed=True)
 
-                net.add_node(cls["name"], label=label, title=title,
-                           color={"background": "#4CAF50", "border": "#388E3C"},
-                           shape="box", size=25)
+            # Fast layout - no server-side stabilization, runs in browser
+            net.set_options(f'''
+            var options = {{
+                "physics": {{
+                    "enabled": true,
+                    "barnesHut": {{
+                        "gravitationalConstant": -5000,
+                        "centralGravity": 0.3,
+                        "springLength": {node_spacing},
+                        "springConstant": 0.04,
+                        "avoidOverlap": 0.3
+                    }},
+                    "stabilization": false
+                }},
+                "nodes": {{
+                    "font": {{
+                        "color": "#f0f0f0",
+                        "size": 12
+                    }}
+                }},
+                "edges": {{
+                    "font": {{
+                        "color": "#888888",
+                        "size": 9,
+                        "align": "horizontal"
+                    }},
+                    "smooth": false
+                }}
+            }}
+            ''')
 
-            # Add class hierarchy edges (only if parent node exists in graph)
-            for cls in classes:
-                for parent in cls["parents"]:
-                    if parent in class_names:
-                        net.add_edge(cls["name"], parent, label="subClassOf",
-                                   title=f"Subclass relation:\n{cls['name']} is a subclass of {parent}",
-                                   color="#81C784", arrows="to")
+            # Build set of class names for edge validation
+            class_names = {c["name"] for c in classes} if classes else set()
 
-        # Add object properties and their connections
-        if show_properties and object_props:
-            for prop in object_props:
-                # Add property as a small node
-                label = prop["label"] if prop["label"] else prop["name"]
-                title = f"Object Property: {prop['name']}"
-                if prop["domain"]:
-                    title += f"\nDomain: {prop['domain']}"
-                if prop["range"]:
-                    title += f"\nRange: {prop['range']}"
+            # Add classes as nodes
+            if show_classes and classes:
+                for cls in classes:
+                    label = cls["label"] if cls["label"] else cls["name"]
+                    title = f"Class: {cls['name']}"
+                    if cls["label"]:
+                        title += f"\nLabel: {cls['label']}"
+                    if cls["comment"]:
+                        title += f"\nComment: {cls['comment'][:100]}"
 
-                net.add_node(f"prop_{prop['name']}", label=label, title=title,
-                           color={"background": "#2196F3", "border": "#1976D2"},
-                           shape="ellipse", size=15)
+                    net.add_node(cls["name"], label=label, title=title,
+                               color={"background": "#4CAF50", "border": "#388E3C"},
+                               shape="box", size=25)
 
-                # Connect to domain and range if they exist as nodes
-                if prop["domain"] and show_classes and prop["domain"] in class_names:
-                    net.add_edge(prop["domain"], f"prop_{prop['name']}",
-                               title=f"Domain:\n{prop['name']} has domain {prop['domain']}",
-                               color="#90CAF9", arrows="to", dashes=True)
-                if prop["range"] and show_classes and prop["range"] in class_names:
-                    net.add_edge(f"prop_{prop['name']}", prop["range"],
-                               title=f"Range:\n{prop['name']} has range {prop['range']}",
-                               color="#90CAF9", arrows="to", dashes=True)
+                # Add class hierarchy edges (only if parent node exists in graph)
+                for cls in classes:
+                    for parent in cls["parents"]:
+                        if parent in class_names:
+                            net.add_edge(cls["name"], parent, label="subClassOf",
+                                       title=f"Subclass relation:\n{cls['name']} is a subclass of {parent}",
+                                       color="#81C784", arrows="to")
 
-        # Add individuals
-        if show_individuals and individuals:
-            for ind in individuals:
-                label = ind["label"] if ind["label"] else ind["name"]
-                title = f"Individual: {ind['name']}"
-                if ind["classes"]:
-                    title += f"\nType: {', '.join(ind['classes'])}"
+            # Add object properties as labeled edges between domain and range
+            if show_properties and object_props and show_classes:
+                for prop in object_props:
+                    # Only show if both domain and range exist as class nodes
+                    if prop["domain"] and prop["range"] and prop["domain"] in class_names and prop["range"] in class_names:
+                        label = prop["label"] if prop["label"] else prop["name"]
+                        title = f"Object Property: {prop['name']}"
+                        if prop["label"]:
+                            title += f"\nLabel: {prop['label']}"
+                        net.add_edge(prop["domain"], prop["range"],
+                                   label=label,
+                                   title=title,
+                                   color="#2196F3", arrows="to")
 
-                net.add_node(f"ind_{ind['name']}", label=label, title=title,
-                           color={"background": "#FF9800", "border": "#F57C00"},
-                           shape="dot", size=20)
+            # Add data properties
+            if show_data_props and data_props:
+                for prop in data_props:
+                    label = prop["label"] if prop["label"] else prop["name"]
+                    title = f"Data Property: {prop['name']}"
+                    if prop["domain"]:
+                        title += f"\nDomain: {prop['domain']}"
+                    if prop["range"]:
+                        title += f"\nRange: {prop['range']}"
+                    if prop["functional"]:
+                        title += "\nFunctional: Yes"
 
-                # Connect to classes
-                if show_classes:
-                    for cls_name in ind["classes"]:
-                        if any(c["name"] == cls_name for c in classes):
-                            net.add_edge(f"ind_{ind['name']}", cls_name,
-                                       label="type",
-                                       title=f"Instance of:\n{ind['name']} is an instance of {cls_name}",
-                                       color="#FFB74D", arrows="to")
+                    net.add_node(f"dprop_{prop['name']}", label=label, title=title,
+                               color={"background": "#9C27B0", "border": "#7B1FA2"},
+                               shape="ellipse", size=12)
 
-        # Add class relations (only if both nodes exist)
-        class_relations = ont.get_class_relations()
-        if show_classes and classes:
-            for rel in class_relations:
-                if rel["subject"] in class_names and rel["object"] in class_names:
-                    if rel["relation"] == "equivalentClass":
-                        net.add_edge(rel["subject"], rel["object"],
-                                   label="equivalentClass",
-                                   title=f"Equivalent classes:\n{rel['subject']} and {rel['object']} represent the same concept",
-                                   color="#9C27B0", arrows="to")
-                    elif rel["relation"] == "disjointWith":
-                        net.add_edge(rel["subject"], rel["object"],
-                                   label="disjointWith",
-                                   title=f"Disjoint classes:\n{rel['subject']} and {rel['object']} cannot share instances",
-                                   color="#F44336", arrows="to")
+                    # Connect to domain class if it exists
+                    if prop["domain"] and show_classes and prop["domain"] in class_names:
+                        net.add_edge(prop["domain"], f"dprop_{prop['name']}",
+                                   title=f"Domain:\n{prop['name']} has domain {prop['domain']}",
+                                   color="#CE93D8", arrows="to", dashes=True)
 
-        # Generate and display the graph
-        try:
-            # Save to temp file
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp:
-                net.save_graph(tmp.name)
-                with open(tmp.name, "r", encoding="utf-8") as f:
-                    html_content = f.read()
-                os.unlink(tmp.name)
+                    # Add range as a literal type node
+                    if prop["range"]:
+                        range_node_id = f"dtype_{prop['range']}"
+                        # Only add the datatype node once
+                        try:
+                            net.add_node(range_node_id, label=prop["range"],
+                                       title=f"Datatype: {prop['range']}",
+                                       color={"background": "#607D8B", "border": "#455A64"},
+                                       shape="box", size=10)
+                        except:
+                            pass  # Node already exists
+                        net.add_edge(f"dprop_{prop['name']}", range_node_id,
+                                   title=f"Range:\n{prop['name']} has range {prop['range']}",
+                                   color="#CE93D8", arrows="to", dashes=True)
 
-            # Display in Streamlit
-            st.components.v1.html(html_content, height=height + 50, scrolling=True)
+            # Add individuals
+            if show_individuals and individuals:
+                for ind in individuals:
+                    label = ind["label"] if ind["label"] else ind["name"]
+                    title = f"Individual: {ind['name']}"
+                    if ind["classes"]:
+                        title += f"\nType: {', '.join(ind['classes'])}"
 
-        except Exception as e:
-            st.error(f"Error rendering graph: {str(e)}")
+                    net.add_node(f"ind_{ind['name']}", label=label, title=title,
+                               color={"background": "#FF9800", "border": "#F57C00"},
+                               shape="dot", size=20)
 
-        st.caption("Drag nodes to rearrange • Scroll to zoom • Hover for details")
+                    # Connect to classes
+                    if show_classes:
+                        for cls_name in ind["classes"]:
+                            if any(c["name"] == cls_name for c in classes):
+                                net.add_edge(f"ind_{ind['name']}", cls_name,
+                                           label="type",
+                                           title=f"Instance of:\n{ind['name']} is an instance of {cls_name}",
+                                           color="#FFB74D", arrows="to")
+
+            # Add class relations (only if both nodes exist)
+            class_relations = ont.get_class_relations()
+            if show_classes and classes:
+                for rel in class_relations:
+                    if rel["subject"] in class_names and rel["object"] in class_names:
+                        if rel["relation"] == "equivalentClass":
+                            net.add_edge(rel["subject"], rel["object"],
+                                       label="equivalentClass",
+                                       title=f"Equivalent classes:\n{rel['subject']} and {rel['object']} represent the same concept",
+                                       color="#9C27B0", arrows="to")
+                        elif rel["relation"] == "disjointWith":
+                            net.add_edge(rel["subject"], rel["object"],
+                                       label="disjointWith",
+                                       title=f"Disjoint classes:\n{rel['subject']} and {rel['object']} cannot share instances",
+                                       color="#F44336", arrows="to")
+
+            # Add annotations for classes and individuals
+            if show_annotations:
+                annotation_counter = 0
+                # Annotations for classes
+                if show_classes and classes:
+                    for cls in classes:
+                        annotations = ont.get_annotations(cls["name"])
+                        for ann in annotations:
+                            # Skip label and comment as they're already shown in tooltip
+                            if ann["predicate"] in ["label", "comment"]:
+                                continue
+                            annotation_counter += 1
+                            ann_id = f"ann_{annotation_counter}"
+                            # Truncate long values
+                            value_display = ann["value"][:50] + "..." if len(ann["value"]) > 50 else ann["value"]
+                            net.add_node(ann_id, label=value_display,
+                                       title=f"{ann['predicate']}: {ann['value']}",
+                                       color={"background": "#795548", "border": "#5D4037"},
+                                       shape="box", size=8, font={"size": 10})
+                            net.add_edge(cls["name"], ann_id,
+                                       label=ann["predicate"],
+                                       title=f"Annotation: {ann['predicate']}",
+                                       color="#A1887F", arrows="to", dashes=True)
+
+                # Annotations for individuals
+                if show_individuals and individuals:
+                    for ind in individuals:
+                        annotations = ont.get_annotations(ind["name"])
+                        for ann in annotations:
+                            if ann["predicate"] in ["label", "comment"]:
+                                continue
+                            annotation_counter += 1
+                            ann_id = f"ann_{annotation_counter}"
+                            value_display = ann["value"][:50] + "..." if len(ann["value"]) > 50 else ann["value"]
+                            net.add_node(ann_id, label=value_display,
+                                       title=f"{ann['predicate']}: {ann['value']}",
+                                       color={"background": "#795548", "border": "#5D4037"},
+                                       shape="box", size=8, font={"size": 10})
+                            net.add_edge(f"ind_{ind['name']}", ann_id,
+                                       label=ann["predicate"],
+                                       title=f"Annotation: {ann['predicate']}",
+                                       color="#A1887F", arrows="to", dashes=True)
+
+            # Generate and display the graph
+            try:
+                # Save to temp file
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp:
+                    net.save_graph(tmp.name)
+                    with open(tmp.name, "r", encoding="utf-8") as f:
+                        html_content = f.read()
+                    os.unlink(tmp.name)
+
+                # Inject script to stop physics after 1 second
+                stop_physics_script = """
+                <script>
+                setTimeout(function() {
+                    if (typeof network !== 'undefined') {
+                        network.setOptions({ physics: { enabled: false } });
+                    }
+                }, 1000);
+                </script>
+                </body>
+                """
+                html_content = html_content.replace("</body>", stop_physics_script)
+
+                # Cache the HTML for reuse
+                st.session_state.last_graph_key = graph_key
+                st.session_state.last_graph_html = html_content
+
+                # Display in Streamlit
+                st.components.v1.html(html_content, height=height + 50, scrolling=True)
+
+            except Exception as e:
+                st.error(f"Error rendering graph: {str(e)}")
+
+            st.caption("🟢 Classes • 🔵 Obj Props (edges) • 🟣 Data Props • 🟠 Individuals • 🟤 Annotations | Drag nodes • Scroll to zoom • Hover for details")
 
     with tab2:
         st.subheader("Class Hierarchy (Text)")
