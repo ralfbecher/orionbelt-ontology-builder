@@ -1842,6 +1842,9 @@ def render_visualization():
             import tempfile
             import os
 
+            status = st.empty()
+            status.info("Building graph...")
+
             net = Network(height=f"{height}px", width="100%", bgcolor="#ffffff",
                          font_color="#f0f0f0", directed=True)
 
@@ -1867,11 +1870,16 @@ def render_visualization():
                 }},
                 "edges": {{
                     "font": {{
-                        "color": "#888888",
-                        "size": 9,
-                        "align": "horizontal"
+                        "color": "#cccccc",
+                        "size": 10,
+                        "strokeWidth": 2,
+                        "strokeColor": "#ffffff"
                     }},
-                    "smooth": false
+                    "smooth": {{
+                        "enabled": true,
+                        "type": "curvedCW",
+                        "roundness": 0.2
+                    }}
                 }}
             }}
             ''')
@@ -1992,45 +2000,58 @@ def render_visualization():
             # Add annotations for classes and individuals
             if show_annotations:
                 annotation_counter = 0
+                max_annotations = 100  # Limit to prevent hanging
                 # Annotations for classes
                 if show_classes and classes:
                     for cls in classes:
-                        annotations = ont.get_annotations(cls["name"])
-                        for ann in annotations:
-                            # Skip label and comment as they're already shown in tooltip
-                            if ann["predicate"] in ["label", "comment"]:
-                                continue
-                            annotation_counter += 1
-                            ann_id = f"ann_{annotation_counter}"
-                            # Truncate long values
-                            value_display = ann["value"][:50] + "..." if len(ann["value"]) > 50 else ann["value"]
-                            net.add_node(ann_id, label=value_display,
-                                       title=f"{ann['predicate']}: {ann['value']}",
-                                       color={"background": "#795548", "border": "#5D4037"},
-                                       shape="box", size=8, font={"size": 10})
-                            net.add_edge(cls["name"], ann_id,
-                                       label=ann["predicate"],
-                                       title=f"Annotation: {ann['predicate']}",
-                                       color="#A1887F", arrows="to", dashes=True)
+                        if annotation_counter >= max_annotations:
+                            break
+                        try:
+                            annotations = ont.get_annotations(cls["name"])
+                            for ann in annotations:
+                                if annotation_counter >= max_annotations:
+                                    break
+                                # Skip label and comment as they're already shown in tooltip
+                                if ann["predicate"] in ["label", "comment"]:
+                                    continue
+                                annotation_counter += 1
+                                ann_id = f"ann_{annotation_counter}"
+                                # Truncate long values
+                                value_display = ann["value"][:30] + "..." if len(ann["value"]) > 30 else ann["value"]
+                                net.add_node(ann_id, label=value_display,
+                                           title=f"{ann['predicate']}: {ann['value']}",
+                                           color={"background": "#795548", "border": "#5D4037"},
+                                           shape="box", size=8, font={"size": 10, "color": "#f0f0f0"})
+                                net.add_edge(cls["name"], ann_id,
+                                           title=f"Annotation: {ann['predicate']}",
+                                           color="#A1887F", arrows="to", dashes=True)
+                        except Exception:
+                            pass  # Skip problematic annotations
 
                 # Annotations for individuals
                 if show_individuals and individuals:
                     for ind in individuals:
-                        annotations = ont.get_annotations(ind["name"])
-                        for ann in annotations:
-                            if ann["predicate"] in ["label", "comment"]:
-                                continue
-                            annotation_counter += 1
-                            ann_id = f"ann_{annotation_counter}"
-                            value_display = ann["value"][:50] + "..." if len(ann["value"]) > 50 else ann["value"]
-                            net.add_node(ann_id, label=value_display,
-                                       title=f"{ann['predicate']}: {ann['value']}",
-                                       color={"background": "#795548", "border": "#5D4037"},
-                                       shape="box", size=8, font={"size": 10})
-                            net.add_edge(f"ind_{ind['name']}", ann_id,
-                                       label=ann["predicate"],
-                                       title=f"Annotation: {ann['predicate']}",
-                                       color="#A1887F", arrows="to", dashes=True)
+                        if annotation_counter >= max_annotations:
+                            break
+                        try:
+                            annotations = ont.get_annotations(ind["name"])
+                            for ann in annotations:
+                                if annotation_counter >= max_annotations:
+                                    break
+                                if ann["predicate"] in ["label", "comment"]:
+                                    continue
+                                annotation_counter += 1
+                                ann_id = f"ann_{annotation_counter}"
+                                value_display = ann["value"][:30] + "..." if len(ann["value"]) > 30 else ann["value"]
+                                net.add_node(ann_id, label=value_display,
+                                           title=f"{ann['predicate']}: {ann['value']}",
+                                           color={"background": "#795548", "border": "#5D4037"},
+                                           shape="box", size=8, font={"size": 10, "color": "#f0f0f0"})
+                                net.add_edge(f"ind_{ind['name']}", ann_id,
+                                           title=f"Annotation: {ann['predicate']}",
+                                           color="#A1887F", arrows="to", dashes=True)
+                        except Exception:
+                            pass  # Skip problematic annotations
 
             # Generate and display the graph
             try:
@@ -2059,9 +2080,11 @@ def render_visualization():
                 st.session_state.last_graph_html = html_content
 
                 # Display in Streamlit
+                status.empty()
                 st.components.v1.html(html_content, height=height + 50, scrolling=True)
 
             except Exception as e:
+                status.empty()
                 st.error(f"Error rendering graph: {str(e)}")
 
             st.caption("🟢 Classes • 🔵 Obj Props (edges) • 🟣 Data Props • 🟠 Individuals • 🟤 Annotations | Drag nodes • Scroll to zoom • Hover for details")
