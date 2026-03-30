@@ -379,28 +379,32 @@ def render_classes():
             for cls in sorted_classes:
                 display_name = format_label_name(cls['name'], cls.get('label'))
                 with st.expander(f"📦 **{display_name}**"):
-                    col_info, col_actions = st.columns([4, 1])
+                    st.write(f"**URI:** {cls['uri']}")
 
-                    with col_info:
-                        st.write(f"**URI:** {cls['uri']}")
+                    btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
+                    with btn_view:
+                        if st.button("👁️ View", key=f"btn_view_class_{cls['name']}", use_container_width=True):
+                            st.session_state[f"view_class_{cls['name']}"] = not st.session_state.get(f"view_class_{cls['name']}", False)
+                            st.session_state[f"edit_class_{cls['name']}"] = False
+                    with btn_edit:
+                        if st.button("✏️ Edit", key=f"btn_edit_class_{cls['name']}", use_container_width=True):
+                            st.session_state[f"edit_class_{cls['name']}"] = not st.session_state.get(f"edit_class_{cls['name']}", False)
+                            st.session_state[f"view_class_{cls['name']}"] = False
+                    with btn_del:
+                        if st.button("🗑️ Delete", key=f"btn_del_class_{cls['name']}", use_container_width=True):
+                            st.session_state[f"confirm_delete_class_{cls['name']}"] = True
+                            st.rerun()
+
+                    # View details
+                    if st.session_state.get(f"view_class_{cls['name']}", False):
                         if cls["comment"]:
                             st.write(f"**Comment:** {cls['comment']}")
                         if cls["parents"]:
                             st.write(f"**Parents:** {', '.join(cls['parents'])}")
                         if cls["children"]:
                             st.write(f"**Children:** {', '.join(cls['children'])}")
-
-                    with col_actions:
-                        # Edit functionality
-                        if f"edit_class_{cls['name']}" not in st.session_state:
-                            st.session_state[f"edit_class_{cls['name']}"] = False
-
-                        if st.button("✏️ Edit", key=f"btn_edit_class_{cls['name']}"):
-                            st.session_state[f"edit_class_{cls['name']}"] = not st.session_state[f"edit_class_{cls['name']}"]
-
-                        if st.button("🗑️ Delete", key=f"btn_del_class_{cls['name']}"):
-                            st.session_state[f"confirm_delete_class_{cls['name']}"] = True
-                            st.rerun()
+                        if not cls["comment"] and not cls["parents"] and not cls["children"]:
+                            st.caption("No additional details.")
 
                     if confirm_delete(cls["name"], "class", f"class_{cls['name']}"):
                         ont.delete_class(cls["name"])
@@ -597,10 +601,24 @@ def render_properties():
 
             for prop in filtered_obj_props:
                 with st.expander(f"🔗 **{prop['name']}** ({prop['domain'] or '?'} → {prop['range'] or '?'})"):
-                    col_info, col_actions = st.columns([4, 1])
+                    st.write(f"**URI:** {prop['uri']}")
 
-                    with col_info:
-                        st.write(f"**URI:** {prop['uri']}")
+                    btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
+                    with btn_view:
+                        if st.button("👁️ View", key=f"btn_view_objprop_{prop['name']}", use_container_width=True):
+                            st.session_state[f"view_objprop_{prop['name']}"] = not st.session_state.get(f"view_objprop_{prop['name']}", False)
+                            st.session_state[f"edit_objprop_{prop['name']}"] = False
+                    with btn_edit:
+                        if st.button("✏️ Edit", key=f"btn_edit_objprop_{prop['name']}", use_container_width=True):
+                            st.session_state[f"edit_objprop_{prop['name']}"] = not st.session_state.get(f"edit_objprop_{prop['name']}", False)
+                            st.session_state[f"view_objprop_{prop['name']}"] = False
+                    with btn_del:
+                        if st.button("🗑️ Delete", key=f"btn_del_objprop_{prop['name']}", use_container_width=True):
+                            st.session_state[f"confirm_delete_objprop_{prop['name']}"] = True
+                            st.rerun()
+
+                    # View details
+                    if st.session_state.get(f"view_objprop_{prop['name']}", False):
                         if prop["label"]:
                             st.write(f"**Label:** {prop['label']}")
                         if prop["comment"]:
@@ -611,17 +629,6 @@ def render_properties():
                             st.write(f"**Characteristics:** {', '.join(prop['characteristics'])}")
                         if prop.get("inverse_of"):
                             st.write(f"**Inverse of:** {prop['inverse_of']}")
-
-                    with col_actions:
-                        if f"edit_objprop_{prop['name']}" not in st.session_state:
-                            st.session_state[f"edit_objprop_{prop['name']}"] = False
-
-                        if st.button("✏️ Edit", key=f"btn_edit_objprop_{prop['name']}"):
-                            st.session_state[f"edit_objprop_{prop['name']}"] = not st.session_state[f"edit_objprop_{prop['name']}"]
-
-                        if st.button("🗑️ Delete", key=f"btn_del_objprop_{prop['name']}"):
-                            st.session_state[f"confirm_delete_objprop_{prop['name']}"] = True
-                            st.rerun()
 
                     if confirm_delete(prop["name"], "property", f"objprop_{prop['name']}"):
                         ont.delete_property(prop["name"])
@@ -693,10 +700,24 @@ def render_properties():
 
             for prop in filtered_data_props:
                 with st.expander(f"📝 **{prop['name']}** ({prop['domain'] or '?'} → {prop['range']})"):
-                    col_info, col_actions = st.columns([4, 1])
+                    st.write(f"**URI:** {prop['uri']}")
 
-                    with col_info:
-                        st.write(f"**URI:** {prop['uri']}")
+                    btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
+                    with btn_view:
+                        if st.button("👁️ View", key=f"btn_view_dataprop_{prop['name']}", use_container_width=True):
+                            st.session_state[f"view_dataprop_{prop['name']}"] = not st.session_state.get(f"view_dataprop_{prop['name']}", False)
+                            st.session_state[f"edit_dataprop_{prop['name']}"] = False
+                    with btn_edit:
+                        if st.button("✏️ Edit", key=f"btn_edit_dataprop_{prop['name']}", use_container_width=True):
+                            st.session_state[f"edit_dataprop_{prop['name']}"] = not st.session_state.get(f"edit_dataprop_{prop['name']}", False)
+                            st.session_state[f"view_dataprop_{prop['name']}"] = False
+                    with btn_del:
+                        if st.button("🗑️ Delete", key=f"btn_del_dataprop_{prop['name']}", use_container_width=True):
+                            st.session_state[f"confirm_delete_dataprop_{prop['name']}"] = True
+                            st.rerun()
+
+                    # View details
+                    if st.session_state.get(f"view_dataprop_{prop['name']}", False):
                         if prop["label"]:
                             st.write(f"**Label:** {prop['label']}")
                         if prop["comment"]:
@@ -704,17 +725,6 @@ def render_properties():
                         st.write(f"**Domain:** {prop['domain'] or 'Not specified'}")
                         st.write(f"**Range (Datatype):** {prop['range']}")
                         st.write(f"**Functional:** {'Yes' if prop['functional'] else 'No'}")
-
-                    with col_actions:
-                        if f"edit_dataprop_{prop['name']}" not in st.session_state:
-                            st.session_state[f"edit_dataprop_{prop['name']}"] = False
-
-                        if st.button("✏️ Edit", key=f"btn_edit_dataprop_{prop['name']}"):
-                            st.session_state[f"edit_dataprop_{prop['name']}"] = not st.session_state[f"edit_dataprop_{prop['name']}"]
-
-                        if st.button("🗑️ Delete", key=f"btn_del_dataprop_{prop['name']}"):
-                            st.session_state[f"confirm_delete_dataprop_{prop['name']}"] = True
-                            st.rerun()
 
                     if confirm_delete(prop["name"], "property", f"dataprop_{prop['name']}"):
                         ont.delete_property(prop["name"])
@@ -879,31 +889,33 @@ def render_individuals():
             for ind in individuals:
                 classes_str = ", ".join(ind["classes"]) if ind["classes"] else "No class"
                 with st.expander(f"👤 **{ind['name']}** ({classes_str})"):
-                    col_info, col_actions = st.columns([4, 1])
+                    st.write(f"**URI:** {ind['uri']}")
 
-                    with col_info:
-                        st.write(f"**URI:** {ind['uri']}")
+                    btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
+                    with btn_view:
+                        if st.button("👁️ View", key=f"btn_view_ind_{ind['name']}", use_container_width=True):
+                            st.session_state[f"view_ind_{ind['name']}"] = not st.session_state.get(f"view_ind_{ind['name']}", False)
+                            st.session_state[f"edit_ind_{ind['name']}"] = False
+                    with btn_edit:
+                        if st.button("✏️ Edit", key=f"btn_edit_ind_{ind['name']}", use_container_width=True):
+                            st.session_state[f"edit_ind_{ind['name']}"] = not st.session_state.get(f"edit_ind_{ind['name']}", False)
+                            st.session_state[f"view_ind_{ind['name']}"] = False
+                    with btn_del:
+                        if st.button("🗑️ Delete", key=f"btn_del_ind_{ind['name']}", use_container_width=True):
+                            st.session_state[f"confirm_delete_ind_{ind['name']}"] = True
+                            st.rerun()
+
+                    # View details
+                    if st.session_state.get(f"view_ind_{ind['name']}", False):
                         if ind["label"]:
                             st.write(f"**Label:** {ind['label']}")
                         if ind["comment"]:
                             st.write(f"**Comment:** {ind['comment']}")
                         st.write(f"**Classes:** {', '.join(ind['classes']) or 'None'}")
-
                         if ind["properties"]:
                             st.write("**Property Values:**")
                             for prop in ind["properties"]:
                                 st.write(f"  - {prop['property']}: {prop['value']}")
-
-                    with col_actions:
-                        if f"edit_ind_{ind['name']}" not in st.session_state:
-                            st.session_state[f"edit_ind_{ind['name']}"] = False
-
-                        if st.button("✏️ Edit", key=f"btn_edit_ind_{ind['name']}"):
-                            st.session_state[f"edit_ind_{ind['name']}"] = not st.session_state[f"edit_ind_{ind['name']}"]
-
-                        if st.button("🗑️ Delete", key=f"btn_del_ind_{ind['name']}"):
-                            st.session_state[f"confirm_delete_ind_{ind['name']}"] = True
-                            st.rerun()
 
                     if confirm_delete(ind["name"], "individual", f"ind_{ind['name']}"):
                         ont.delete_individual(ind["name"])
@@ -2372,21 +2384,6 @@ def main():
     st.sidebar.markdown("\u00a9 2025 [RALFORION d.o.o.](https://ralforion.com)")
     st.sidebar.caption(f"v{APP_VERSION}")
 
-    # Undo / Redo controls
-    um = st.session_state.undo_manager
-    if um:
-        undo_col, redo_col = st.sidebar.columns(2)
-        with undo_col:
-            if st.button("Undo", disabled=not um.can_undo(), use_container_width=True, key="btn_undo"):
-                label = um.undo()
-                set_flash_message(f"Undid: {label}", "info")
-                st.rerun()
-        with redo_col:
-            if st.button("Redo", disabled=not um.can_redo(), use_container_width=True, key="btn_redo"):
-                label = um.redo()
-                set_flash_message(f"Redid: {label}", "info")
-                st.rerun()
-
     pages = {
         "Dashboard": render_dashboard,
         "Classes": render_classes,
@@ -2405,6 +2402,21 @@ def main():
     nav_override = st.session_state.pop("search_navigate_to", None)
     default_idx = list(pages.keys()).index(nav_override) if nav_override and nav_override in pages else 0
     selection = st.sidebar.radio("Navigation", list(pages.keys()), index=default_idx)
+
+    # Undo / Redo controls
+    um = st.session_state.undo_manager
+    if um:
+        undo_col, redo_col = st.sidebar.columns(2)
+        with undo_col:
+            if st.button("Undo", disabled=not um.can_undo(), use_container_width=True, key="btn_undo"):
+                label = um.undo()
+                set_flash_message(f"Undid: {label}", "info")
+                st.rerun()
+        with redo_col:
+            if st.button("Redo", disabled=not um.can_redo(), use_container_width=True, key="btn_redo"):
+                label = um.redo()
+                set_flash_message(f"Redid: {label}", "info")
+                st.rerun()
 
     st.sidebar.divider()
 
