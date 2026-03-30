@@ -3101,8 +3101,6 @@ def render_visualization():
                     f'<div id="graph-status-bar" style="background:#1e1e1e;color:#fff;padding:6px 12px;'
                     f'border-radius:4px;font-size:14px;display:flex;align-items:center;gap:8px;'
                     f'height:36px;">'
-                    f'<span style="opacity:0.5;font-size:11px;white-space:nowrap;">'
-                    f'\U0001f7e2 Classes \U0001f535 Obj Props \U0001f7e3 Data Props \U0001f7e0 Individuals \U0001f7e4 Annotations</span>'
                     f'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{sel_html}</span>'
                     f'</div>',
                     unsafe_allow_html=True
