@@ -1439,6 +1439,117 @@ class OntologyManager:
         """Export ontology to a file."""
         self.graph.serialize(destination=file_path, format=format)
 
+    # ==================== SEARCH ====================
+
+    def search(self, query: str) -> List[Dict[str, str]]:
+        """Search across all resource names, labels, and comments.
+
+        Returns a list of dicts with keys: name, type, label, match_field.
+        Results are case-insensitive partial matches.
+        """
+        if not query or not query.strip():
+            return []
+
+        q = query.strip().lower()
+        results: List[Dict[str, str]] = []
+        seen: Set[str] = set()
+
+        type_map = [
+            (OWL.Class, "Class"),
+            (OWL.ObjectProperty, "Object Property"),
+            (OWL.DatatypeProperty, "Data Property"),
+            (OWL.NamedIndividual, "Individual"),
+        ]
+
+        for rdf_type, type_label in type_map:
+            for subj in self.graph.subjects(RDF.type, rdf_type):
+                if not isinstance(subj, URIRef) or str(subj) in seen:
+                    continue
+                seen.add(str(subj))
+                name = self._local_name(subj)
+                label = str(self.graph.value(subj, RDFS.label) or "")
+                comment = str(self.graph.value(subj, RDFS.comment) or "")
+
+                match_field = None
+                if q in name.lower():
+                    match_field = "name"
+                elif q in label.lower():
+                    match_field = "label"
+                elif q in comment.lower():
+                    match_field = "comment"
+
+                if match_field:
+                    results.append({
+                        "name": name,
+                        "type": type_label,
+                        "label": label,
+                        "match_field": match_field,
+                    })
+
+        results.sort(key=lambda r: (r["match_field"] != "name", r["name"].lower()))
+        return results
+
+    # ==================== RESOURCE USAGES ====================
+
+    def get_resource_usages(self, name: str) -> Dict[str, List[Dict[str, str]]]:
+        """Find all places a resource is referenced in the graph.
+
+        Returns a dict with:
+          - outbound: triples where this resource is the subject (excluding structural type triples)
+          - inbound: triples where this resource is the object
+          - as_predicate: triples where this resource is used as a predicate
+        """
+        uri = self._uri(name)
+
+        structural_preds = {
+            RDF.type, RDFS.subClassOf, RDFS.subPropertyOf,
+            OWL.equivalentClass, OWL.disjointWith,
+        }
+
+        outbound: List[Dict[str, str]] = []
+        for p, o in self.graph.predicate_objects(uri):
+            if p in structural_preds:
+                continue
+            outbound.append({
+                "predicate": self._local_name(p),
+                "object": self._local_name(o) if isinstance(o, URIRef) else str(o),
+                "object_type": "uri" if isinstance(o, URIRef) else "literal",
+            })
+
+        inbound: List[Dict[str, str]] = []
+        for s, p in self.graph.subject_predicates(uri):
+            if isinstance(s, BNode):
+                continue
+            inbound.append({
+                "subject": self._local_name(s) if isinstance(s, URIRef) else str(s),
+                "predicate": self._local_name(p),
+            })
+
+        as_predicate: List[Dict[str, str]] = []
+        for s, o in self.graph.subject_objects(uri):
+            as_predicate.append({
+                "subject": self._local_name(s) if isinstance(s, URIRef) else str(s),
+                "object": self._local_name(o) if isinstance(o, URIRef) else str(o),
+            })
+
+        return {
+            "outbound": outbound,
+            "inbound": inbound,
+            "as_predicate": as_predicate,
+        }
+
+    # ==================== SNAPSHOT & UNDO ====================
+
+    def take_snapshot(self) -> bytes:
+        """Capture the current graph state as a compact byte string."""
+        return self.graph.serialize(format="nt").encode("utf-8")
+
+    def restore_snapshot(self, snapshot: bytes):
+        """Replace the current graph with a previously captured snapshot."""
+        self.graph = Graph()
+        self.graph.parse(data=snapshot.decode("utf-8"), format="nt")
+        self._update_namespace_from_graph()
+
     # ==================== VALIDATION & REASONING ====================
 
     def validate(self) -> List[Dict[str, str]]:
@@ -1688,3 +1799,65 @@ class OntologyManager:
             stats["restrictions"] += 1
 
         return stats
+
+
+class UndoManager:
+    """Manages an undo/redo history stack for an OntologyManager instance.
+
+    Usage:
+        undo_mgr = UndoManager(ontology_manager, max_history=50)
+        undo_mgr.checkpoint("Added class Person")   # before or after a mutation
+        undo_mgr.undo()
+        undo_mgr.redo()
+    """
+
+    def __init__(self, manager: OntologyManager, max_history: int = 50):
+        self.manager = manager
+        self.max_history = max_history
+        self._undo_stack: List[Tuple[str, bytes]] = []  # (label, snapshot)
+        self._redo_stack: List[Tuple[str, bytes]] = []
+        # Capture initial state
+        self._undo_stack.append(("Initial state", manager.take_snapshot()))
+
+    def checkpoint(self, label: str = "Edit"):
+        """Save current state to the undo stack. Call after each mutation."""
+        snapshot = self.manager.take_snapshot()
+        self._undo_stack.append((label, snapshot))
+        if len(self._undo_stack) > self.max_history:
+            self._undo_stack.pop(0)
+        self._redo_stack.clear()
+
+    def can_undo(self) -> bool:
+        return len(self._undo_stack) > 1
+
+    def can_redo(self) -> bool:
+        return len(self._redo_stack) > 0
+
+    def undo(self) -> Optional[str]:
+        """Undo the last change. Returns the label of the restored state, or None."""
+        if not self.can_undo():
+            return None
+        current = self._undo_stack.pop()
+        self._redo_stack.append(current)
+        label, snapshot = self._undo_stack[-1]
+        self.manager.restore_snapshot(snapshot)
+        return label
+
+    def redo(self) -> Optional[str]:
+        """Redo the last undone change. Returns the label, or None."""
+        if not self.can_redo():
+            return None
+        label, snapshot = self._redo_stack.pop()
+        self._undo_stack.append((label, snapshot))
+        self.manager.restore_snapshot(snapshot)
+        return label
+
+    @property
+    def undo_labels(self) -> List[str]:
+        """Labels in the undo stack (most recent last), excluding the bottom."""
+        return [label for label, _ in self._undo_stack[1:]]
+
+    @property
+    def redo_labels(self) -> List[str]:
+        """Labels in the redo stack (next redo last)."""
+        return [label for label, _ in self._redo_stack]

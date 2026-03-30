@@ -77,10 +77,19 @@ def init_session_state():
         with st.spinner("Loading ontology engine..."):
             OntologyManager = get_ontology_manager_class()
             st.session_state.ontology = OntologyManager()
+    if "undo_manager" not in st.session_state:
+        from ontology_manager import UndoManager
+        st.session_state.undo_manager = UndoManager(st.session_state.ontology)
     if "messages" not in st.session_state:
         st.session_state.messages = []
     if "flash_message" not in st.session_state:
         st.session_state.flash_message = None
+
+
+def save_checkpoint(label: str = "Edit"):
+    """Save a snapshot to the undo history after a mutation."""
+    if "undo_manager" in st.session_state:
+        st.session_state.undo_manager.checkpoint(label)
 
 
 def show_message(message: str, type: str = "info"):
@@ -249,6 +258,7 @@ def render_dashboard():
             ont.set_ontology_metadata(label=label, comment=comment,
                                       creator=creator,
                                       version_iri=version_iri if version_iri else None)
+            save_checkpoint("Update metadata")
             show_message("Metadata updated successfully!", "success")
             st.rerun()
 
@@ -388,6 +398,7 @@ def render_classes():
 
                     if confirm_delete(cls["name"], "class", f"class_{cls['name']}"):
                         ont.delete_class(cls["name"])
+                        save_checkpoint("Delete class")
                         set_flash_message(f"Class '{cls['name']}' deleted!", "success")
                         st.rerun()
 
@@ -411,6 +422,7 @@ def render_classes():
                                 if new_name and new_name != cls["name"]:
                                     if ont.rename_class(cls["name"], new_name):
                                         current_name = new_name
+                                        save_checkpoint("Rename class")
                                         show_message(f"Class renamed to '{new_name}'", "success")
                                     else:
                                         show_message(f"Cannot rename: '{new_name}' already exists!", "error")
@@ -424,6 +436,7 @@ def render_classes():
                                     new_label=new_label,
                                     new_comment=new_comment,
                                     new_parent=new_parent if new_parent != "None" else None)
+                                save_checkpoint("Update class")
                                 st.session_state[f"edit_class_{cls['name']}"] = False
                                 show_message(f"Class '{current_name}' updated!", "success")
                                 st.rerun()
@@ -461,6 +474,7 @@ def render_classes():
                 else:
                     parent_val = parent_lookup.get(parent_display)
                     ont.add_class(name, parent=parent_val, label=label, comment=comment)
+                    save_checkpoint("Add class")
                     show_message(f"Class '{name}' added successfully!", "success")
                     st.rerun()
 
@@ -509,6 +523,7 @@ def render_classes():
                                            new_label=new_label,
                                            new_comment=new_comment,
                                            new_parent=new_parent if new_parent != "None" else None)
+                            save_checkpoint("Update class")
                             show_message(f"Class '{selected_class}' updated!", "success")
                             st.rerun()
 
@@ -518,8 +533,23 @@ def render_classes():
 
                 if confirm_delete(selected_class, "class", f"class_detail_{selected_class}"):
                     ont.delete_class(selected_class)
+                    save_checkpoint("Delete class")
                     set_flash_message(f"Class '{selected_class}' deleted!", "success")
                     st.rerun()
+
+                # Resource usages / backlinks
+                with st.expander("Show Usages"):
+                    usages = ont.get_resource_usages(selected_class)
+                    if usages["inbound"]:
+                        st.markdown("**Referenced by:**")
+                        for u in usages["inbound"]:
+                            st.write(f"- {u['subject']} *{u['predicate']}*")
+                    if usages["outbound"]:
+                        st.markdown("**References:**")
+                        for u in usages["outbound"]:
+                            st.write(f"- *{u['predicate']}* {u['object']}")
+                    if not usages["inbound"] and not usages["outbound"]:
+                        st.caption("No usages found.")
 
 
 def render_properties():
@@ -589,6 +619,7 @@ def render_properties():
 
                     if confirm_delete(prop["name"], "property", f"objprop_{prop['name']}"):
                         ont.delete_property(prop["name"])
+                        save_checkpoint("Delete property")
                         set_flash_message(f"Property '{prop['name']}' deleted!", "success")
                         st.rerun()
 
@@ -614,6 +645,7 @@ def render_properties():
                                 if new_name and new_name != prop["name"]:
                                     if ont.rename_property(prop["name"], new_name):
                                         current_name = new_name
+                                        save_checkpoint("Rename property")
                                         show_message(f"Property renamed to '{new_name}'", "success")
                                     else:
                                         show_message(f"Cannot rename: '{new_name}' already exists!", "error")
@@ -626,6 +658,7 @@ def render_properties():
                                     new_comment=new_comment,
                                     new_domain=new_domain if new_domain != "None" else "",
                                     new_range=new_range if new_range != "None" else "")
+                                save_checkpoint("Update property")
                                 st.session_state[f"edit_objprop_{prop['name']}"] = False
                                 show_message(f"Property '{current_name}' updated!", "success")
                                 st.rerun()
@@ -679,6 +712,7 @@ def render_properties():
 
                     if confirm_delete(prop["name"], "property", f"dataprop_{prop['name']}"):
                         ont.delete_property(prop["name"])
+                        save_checkpoint("Delete property")
                         set_flash_message(f"Property '{prop['name']}' deleted!", "success")
                         st.rerun()
 
@@ -705,6 +739,7 @@ def render_properties():
                                 if new_name and new_name != prop["name"]:
                                     if ont.rename_property(prop["name"], new_name):
                                         current_name = new_name
+                                        save_checkpoint("Rename property")
                                         show_message(f"Property renamed to '{new_name}'", "success")
                                     else:
                                         show_message(f"Cannot rename: '{new_name}' already exists!", "error")
@@ -717,6 +752,7 @@ def render_properties():
                                     new_comment=new_comment,
                                     new_domain=new_domain if new_domain != "None" else "",
                                     new_range=new_range)
+                                save_checkpoint("Update property")
                                 st.session_state[f"edit_dataprop_{prop['name']}"] = False
                                 show_message(f"Property '{current_name}' updated!", "success")
                                 st.rerun()
@@ -773,6 +809,7 @@ def render_properties():
                         irreflexive=irreflexive,
                         inverse_of=inverse_of if inverse_of != "None" else None
                     )
+                    save_checkpoint("Add object property")
                     show_message(f"Object property '{name}' added!", "success")
                     st.rerun()
 
@@ -810,6 +847,7 @@ def render_properties():
                         comment=comment,
                         functional=functional
                     )
+                    save_checkpoint("Add data property")
                     show_message(f"Data property '{name}' added!", "success")
                     st.rerun()
 
@@ -863,8 +901,23 @@ def render_individuals():
 
                     if confirm_delete(ind["name"], "individual", f"ind_{ind['name']}"):
                         ont.delete_individual(ind["name"])
+                        save_checkpoint("Delete individual")
                         set_flash_message(f"Individual '{ind['name']}' deleted!", "success")
                         st.rerun()
+
+                    # Resource usages
+                    with st.expander("Show Usages", expanded=False):
+                        usages = ont.get_resource_usages(ind["name"])
+                        if usages["inbound"]:
+                            st.markdown("**Referenced by:**")
+                            for u in usages["inbound"]:
+                                st.write(f"- {u['subject']} *{u['predicate']}*")
+                        if usages["outbound"]:
+                            st.markdown("**References:**")
+                            for u in usages["outbound"]:
+                                st.write(f"- *{u['predicate']}* {u['object']}")
+                        if not usages["inbound"] and not usages["outbound"]:
+                            st.caption("No usages found.")
 
                     # Inline edit form
                     if st.session_state.get(f"edit_ind_{ind['name']}", False):
@@ -893,6 +946,7 @@ def render_individuals():
                                 if new_name and new_name != ind["name"]:
                                     if ont.rename_individual(ind["name"], new_name):
                                         current_name = new_name
+                                        save_checkpoint("Rename individual")
                                         show_message(f"Individual renamed to '{new_name}'", "success")
                                     else:
                                         show_message(f"Cannot rename: '{new_name}' already exists!", "error")
@@ -905,6 +959,7 @@ def render_individuals():
                                     new_comment=new_comment,
                                     add_class=add_class if add_class != "None" else None,
                                     remove_class=remove_class if remove_class != "None" else None)
+                                save_checkpoint("Update individual")
                                 st.session_state[f"edit_ind_{ind['name']}"] = False
                                 show_message(f"Individual '{current_name}' updated!", "success")
                                 st.rerun()
@@ -929,6 +984,7 @@ def render_individuals():
                         show_message(f"Individual '{name}' already exists!", "error")
                     else:
                         ont.add_individual(name, class_type, label=label, comment=comment)
+                        save_checkpoint("Add individual")
                         show_message(f"Individual '{name}' added!", "success")
                         st.rerun()
 
@@ -965,6 +1021,7 @@ def render_individuals():
                     else:
                         ont.add_individual_property(individual, property_name, value,
                                                    is_object_property=is_object)
+                        save_checkpoint("Add property assertion")
                         show_message(f"Property value added to '{individual}'!", "success")
                         st.rerun()
 
@@ -1001,6 +1058,7 @@ def render_restrictions():
                             ont.delete_restriction(rest['applied_to'][0],
                                                   rest['property'],
                                                   rest['type'])
+                            save_checkpoint("Delete restriction")
                             show_message("Restriction deleted!", "success")
                             st.rerun()
 
@@ -1046,6 +1104,7 @@ def render_restrictions():
                     try:
                         ont.add_restriction(target_class, property_name, restriction_type,
                                           value, on_class=on_class)
+                        save_checkpoint("Add restriction")
                         show_message("Restriction added!", "success")
                         st.rerun()
                     except Exception as e:
@@ -1087,6 +1146,7 @@ def render_relations():
                 with col4:
                     if st.button("🗑️", key=f"del_crel_{rel['subject']}_{rel['relation']}_{rel['object']}"):
                         ont.remove_class_relation(rel['subject'], rel['relation'], rel['object'])
+                        save_checkpoint("Delete class relation")
                         show_message("Relation deleted!", "success")
                         st.rerun()
         else:
@@ -1109,6 +1169,7 @@ def render_relations():
                 with col4:
                     if st.button("🗑️", key=f"del_prel_{rel['subject']}_{rel['relation']}_{rel['object']}"):
                         ont.remove_property_relation(rel['subject'], rel['relation'], rel['object'])
+                        save_checkpoint("Delete property relation")
                         show_message("Relation deleted!", "success")
                         st.rerun()
         else:
@@ -1131,6 +1192,7 @@ def render_relations():
                 with col4:
                     if st.button("🗑️", key=f"del_irel_{rel['subject']}_{rel['relation']}_{rel['object']}"):
                         ont.remove_individual_relation(rel['subject'], rel['relation'], rel['object'])
+                        save_checkpoint("Delete individual relation")
                         show_message("Relation deleted!", "success")
                         st.rerun()
         else:
@@ -1168,6 +1230,7 @@ def render_relations():
                         show_message("Please select two different classes!", "error")
                     else:
                         ont.add_class_relation(class1, relation_type, class2)
+                        save_checkpoint("Add class relation")
                         show_message(f"Relation added: {class1} {relation_type} {class2}", "success")
                         st.rerun()
 
@@ -1203,6 +1266,7 @@ def render_relations():
                         show_message("Please select two different properties!", "error")
                     else:
                         ont.add_property_relation(prop1, relation_type, prop2)
+                        save_checkpoint("Add property relation")
                         show_message(f"Relation added: {prop1} {relation_type} {prop2}", "success")
                         st.rerun()
 
@@ -1236,6 +1300,7 @@ def render_relations():
                         show_message("Please select two different individuals!", "error")
                     else:
                         ont.add_individual_relation(ind1, relation_type, ind2)
+                        save_checkpoint("Add individual relation")
                         show_message(f"Relation added: {ind1} {relation_type} {ind2}", "success")
                         st.rerun()
 
@@ -1330,6 +1395,7 @@ def render_annotations():
                                         resource_name, ann['predicate'], ann['value'],
                                         lang=ann.get('language'), datatype=ann.get('datatype')
                                     )
+                                    save_checkpoint("Delete annotation")
                                     show_message("Annotation deleted!", "success")
                                     st.rerun()
 
@@ -1407,6 +1473,7 @@ def render_annotations():
                         predicate_uri = predicate_lookup.get(predicate_display, predicate_display)
                         ont.add_annotation(resource_name, predicate_uri, value,
                                          lang=language if language else None)
+                        save_checkpoint("Add annotation")
                         show_message("Annotation added!", "success")
                         st.rerun()
 
@@ -1451,6 +1518,7 @@ def render_import_export():
                         content = uploaded_file.read().decode("utf-8")
                         ont.load_from_string(content, format=format_)
                         st.session_state.ontology = ont
+                        save_checkpoint("Import ontology")
                         set_flash_message(f"Ontology imported successfully! ({len(ont.graph)} triples)", "success")
                         st.rerun()
                     except Exception as e:
@@ -1467,6 +1535,7 @@ def render_import_export():
                     try:
                         ont.load_from_string(content, format=format_)
                         st.session_state.ontology = ont
+                        save_checkpoint("Import ontology")
                         set_flash_message(f"Ontology imported successfully! ({len(ont.graph)} triples)", "success")
                         st.rerun()
                     except Exception as e:
@@ -1532,6 +1601,8 @@ def render_import_export():
                         label=label, comment=comment,
                         creator=creator
                     )
+                    from ontology_manager import UndoManager
+                    st.session_state.undo_manager = UndoManager(st.session_state.ontology)
                     show_message("New ontology created!", "success")
                     st.rerun()
 
@@ -1597,11 +1668,13 @@ def render_advanced():
                     if expr_type == "oneOf" and selected_individuals:
                         ont.add_class_expression(target_class, expr_type,
                             individuals=selected_individuals)
+                        save_checkpoint("Add class expression")
                         show_message(f"Expression added to {target_class}", "success")
                         st.rerun()
                     elif selected_classes:
                         ont.add_class_expression(target_class, expr_type,
                             classes=selected_classes)
+                        save_checkpoint("Add class expression")
                         show_message(f"Expression added to {target_class}", "success")
                         st.rerun()
                     else:
@@ -1810,6 +1883,7 @@ def render_validation():
         if st.button("Apply Reasoning"):
             try:
                 new_triples = ont.apply_reasoning(profile=profile[1])
+                save_checkpoint("Apply reasoning")
                 show_message(f"Reasoning complete! {new_triples} new triples inferred.", "success")
                 st.write(f"New triple count: {len(ont.graph)}")
             except Exception as e:
@@ -1863,6 +1937,13 @@ def render_visualization():
         with col3:
             render_graph = st.button("Render Graph", type="primary", use_container_width=True)
 
+        # Validation highlighting option
+        highlight_issues = st.checkbox("Highlight validation issues", value=False)
+        validation_subjects = set()
+        if highlight_issues:
+            issues = ont.validate()
+            validation_subjects = {i["subject"] for i in issues}
+
         # Class filter
         all_class_names = [c["name"] for c in classes] if classes else []
         with st.expander("Filter Classes", expanded=False):
@@ -1875,7 +1956,7 @@ def render_visualization():
 
         # Store graph settings in session state for caching
         selected_classes_key = "_".join(sorted(selected_classes)) if selected_classes else "none"
-        graph_key = f"{show_classes}_{show_properties}_{show_data_props}_{show_annotations}_{show_individuals}_{height}_{node_spacing}_{hash(selected_classes_key)}"
+        graph_key = f"{show_classes}_{show_properties}_{show_data_props}_{show_annotations}_{show_individuals}_{height}_{node_spacing}_{highlight_issues}_{hash(selected_classes_key)}"
         if "last_graph_key" not in st.session_state:
             st.session_state.last_graph_key = None
             st.session_state.last_graph_html = None
@@ -1888,7 +1969,7 @@ def render_visualization():
         if has_cache and not should_render:
             # Show cached version only if nothing changed
             st.components.v1.html(st.session_state.last_graph_html, height=height + 50, scrolling=True)
-            st.caption("🟢 Classes • 🔵 Obj Props (edges) • 🟣 Data Props • 🟠 Individuals • 🟤 Annotations | Drag nodes • Scroll to zoom • Hover for details")
+            st.caption("🟢 Classes • 🔵 Obj Props (edges) • 🟣 Data Props • 🟠 Individuals • 🟤 Annotations • 🔴 Validation issues | Drag nodes • Scroll to zoom • Click for details")
 
         if should_render:
             # Build the graph
@@ -1961,8 +2042,15 @@ def render_visualization():
                     if cls["comment"]:
                         title += f"\nComment: {cls['comment'][:100]}"
 
+                    has_issue = cls["name"] in validation_subjects
+                    node_color = ({"background": "#4CAF50", "border": "#F44336", "highlight": {"border": "#F44336"}}
+                                  if has_issue
+                                  else {"background": "#4CAF50", "border": "#388E3C"})
+                    border_width = 3 if has_issue else 1
+                    if has_issue:
+                        title += "\n⚠ Has validation issues"
                     net.add_node(cls["name"], label=label, title=title,
-                               color={"background": "#4CAF50", "border": "#388E3C"},
+                               color=node_color, borderWidth=border_width,
                                shape="box", size=25)
                     node_count += 1
 
@@ -2042,8 +2130,15 @@ def render_visualization():
                     if ind["classes"]:
                         title += f"\nType: {', '.join(ind['classes'])}"
 
+                    has_issue = ind["name"] in validation_subjects
+                    ind_color = ({"background": "#FF9800", "border": "#F44336", "highlight": {"border": "#F44336"}}
+                                 if has_issue
+                                 else {"background": "#FF9800", "border": "#F57C00"})
+                    border_width = 3 if has_issue else 1
+                    if has_issue:
+                        title += "\n⚠ Has validation issues"
                     net.add_node(f"ind_{ind['name']}", label=label, title=title,
-                               color={"background": "#FF9800", "border": "#F57C00"},
+                               color=ind_color, borderWidth=border_width,
                                shape="dot", size=20)
                     node_count += 1
 
@@ -2159,6 +2254,28 @@ def render_visualization():
                         network.setOptions({ physics: { enabled: false } });
                     }
                 }, 1000);
+                // Click-to-navigate: show selected node info
+                document.addEventListener('DOMContentLoaded', function() {
+                    setTimeout(function() {
+                        if (typeof network !== 'undefined') {
+                            var infoDiv = document.createElement('div');
+                            infoDiv.id = 'selectedNodeInfo';
+                            infoDiv.style.cssText = 'padding:8px;background:#1e1e1e;color:#fff;font-size:13px;border-top:1px solid #333;';
+                            infoDiv.innerHTML = 'Click a node to see details';
+                            document.body.appendChild(infoDiv);
+                            network.on('click', function(params) {
+                                if (params.nodes.length > 0) {
+                                    var nodeId = params.nodes[0];
+                                    var nodeData = network.body.data.nodes.get(nodeId);
+                                    var title = nodeData.title || '';
+                                    infoDiv.innerHTML = '<b>Selected:</b> ' + nodeId + '<br>' + title.replace(/\\n/g, '<br>');
+                                } else {
+                                    infoDiv.innerHTML = 'Click a node to see details';
+                                }
+                            });
+                        }
+                    }, 500);
+                });
                 </script>
                 </body>
                 """
@@ -2176,7 +2293,7 @@ def render_visualization():
                 status.empty()
                 st.error(f"Error rendering graph: {str(e)}")
 
-            st.caption("🟢 Classes • 🔵 Obj Props (edges) • 🟣 Data Props • 🟠 Individuals • 🟤 Annotations | Drag nodes • Scroll to zoom • Hover for details")
+            st.caption("🟢 Classes • 🔵 Obj Props (edges) • 🟣 Data Props • 🟠 Individuals • 🟤 Annotations • 🔴 Validation issues | Drag nodes • Scroll to zoom • Click for details")
 
     with tab2:
         st.subheader("Class Hierarchy (Text)")
@@ -2258,6 +2375,35 @@ def main():
     }
 
     selection = st.sidebar.radio("Navigation", list(pages.keys()))
+
+    st.sidebar.divider()
+
+    # Global search
+    search_query = st.sidebar.text_input("Search", placeholder="Search resources...", key="global_search")
+    if search_query:
+        results = st.session_state.ontology.search(search_query)
+        if results:
+            for r in results[:10]:
+                label_str = f" ({r['label']})" if r["label"] and r["label"] != r["name"] else ""
+                st.sidebar.markdown(f"**{r['type']}:** {r['name']}{label_str}")
+        else:
+            st.sidebar.caption("No results found.")
+
+    st.sidebar.divider()
+
+    # Undo / Redo controls
+    um = st.session_state.undo_manager
+    undo_col, redo_col = st.sidebar.columns(2)
+    with undo_col:
+        if st.button("Undo", disabled=not um.can_undo(), use_container_width=True, key="btn_undo"):
+            label = um.undo()
+            set_flash_message(f"Undid: {label}", "info")
+            st.rerun()
+    with redo_col:
+        if st.button("Redo", disabled=not um.can_redo(), use_container_width=True, key="btn_redo"):
+            label = um.redo()
+            set_flash_message(f"Redid: {label}", "info")
+            st.rerun()
 
     st.sidebar.divider()
 
