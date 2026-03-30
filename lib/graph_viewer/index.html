@@ -17,10 +17,10 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #fff; }
 </style>
 </head>
 <body>
-<div style="position: relative;">
+<div id="container" style="position: relative;">
     <div id="graph"></div>
     <div id="legend">
-        <div class="row">&#x1f7e2; Classes  &#x1f535; Obj Props  &#x1f7e3; Data Props  &#x1f7e0; Individuals  &#x1f7e4; Annotations</div>
+        <div class="row">&#x1f7e2; Classes  &#x1f535; Obj Props  &#x1f7e3; Data Props  &#x1f7e0; Individuals  &#x1f7e4; Annotations  <span style="color:#00897B;">&#x25A0;</span> SKOS</div>
         <div class="row">
             <span class="line solid" style="border-color:#81C784;"></span> subClassOf &nbsp;
             <span class="line solid" style="border-color:#2196F3;"></span> Object Prop &nbsp;
@@ -28,7 +28,9 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #fff; }
             <span class="line solid" style="border-color:#FFB74D;"></span> type &nbsp;
             <span class="line solid" style="border-color:#9C27B0;"></span> equivalent &nbsp;
             <span class="line solid" style="border-color:#F44336;"></span> disjoint &nbsp;
-            <span class="line dashed" style="border-color:#A1887F;"></span> annotation
+            <span class="line dashed" style="border-color:#A1887F;"></span> annotation &nbsp;
+            <span class="line solid" style="border-color:#26A69A;"></span> broader &nbsp;
+            <span class="line dashed" style="border-color:#80CBC4;"></span> related
         </div>
     </div>
 </div>

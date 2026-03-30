@@ -1,0 +1,764 @@
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix geo:  <http://example.org/geo/> .
+
+# --- Ontology declaration ---
+geo: a owl:Ontology ;
+    rdfs:label "Geography Thesaurus"@en ;
+    dct:description "A sample SKOS vocabulary of geographic regions, countries, and cities for testing."@en ;
+    dct:creator "OrionBelt Sample Data" ;
+    dct:created "2025-01-01"^^xsd:date .
+
+# === Concept Scheme ===
+geo:GeographyScheme a skos:ConceptScheme ;
+    skos:prefLabel "World Geography"@en ;
+    skos:prefLabel "Weltgeographie"@de ;
+    dct:description "Hierarchical vocabulary of continents, regions, countries, and cities."@en ;
+    skos:hasTopConcept geo:Africa, geo:Americas, geo:Asia, geo:Europe, geo:Oceania .
+
+# === Top Concepts: Continents ===
+geo:Africa a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:topConceptOf geo:GeographyScheme ;
+    skos:prefLabel "Africa"@en ;
+    skos:prefLabel "Afrika"@de ;
+    skos:prefLabel "Afrique"@fr ;
+    skos:definition "The second-largest continent, comprising 54 countries."@en ;
+    skos:narrower geo:NorthAfrica, geo:WestAfrica, geo:EastAfrica, geo:SouthernAfrica .
+
+geo:Americas a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:topConceptOf geo:GeographyScheme ;
+    skos:prefLabel "Americas"@en ;
+    skos:prefLabel "Amerika"@de ;
+    skos:prefLabel "Amériques"@fr ;
+    skos:definition "The landmass comprising North and South America."@en ;
+    skos:narrower geo:NorthAmerica, geo:CentralAmerica, geo:SouthAmerica, geo:Caribbean .
+
+geo:Asia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:topConceptOf geo:GeographyScheme ;
+    skos:prefLabel "Asia"@en ;
+    skos:prefLabel "Asien"@de ;
+    skos:prefLabel "Asie"@fr ;
+    skos:definition "The largest continent by area and population."@en ;
+    skos:narrower geo:EastAsia, geo:SoutheastAsia, geo:SouthAsia, geo:WestAsia, geo:CentralAsia .
+
+geo:Europe a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:topConceptOf geo:GeographyScheme ;
+    skos:prefLabel "Europe"@en ;
+    skos:prefLabel "Europa"@de ;
+    skos:prefLabel "Europe"@fr ;
+    skos:definition "A continent located entirely in the Northern Hemisphere."@en ;
+    skos:narrower geo:WesternEurope, geo:EasternEurope, geo:NorthernEurope, geo:SouthernEurope .
+
+geo:Oceania a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:topConceptOf geo:GeographyScheme ;
+    skos:prefLabel "Oceania"@en ;
+    skos:prefLabel "Ozeanien"@de ;
+    skos:prefLabel "Océanie"@fr ;
+    skos:definition "A geographic region comprising Australasia, Melanesia, Micronesia, and Polynesia."@en ;
+    skos:narrower geo:Australasia, geo:Melanesia, geo:Polynesia .
+
+# === Regions: Africa ===
+geo:NorthAfrica a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "North Africa"@en ;
+    skos:broader geo:Africa ;
+    skos:narrower geo:Egypt, geo:Morocco, geo:Tunisia .
+
+geo:WestAfrica a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "West Africa"@en ;
+    skos:broader geo:Africa ;
+    skos:narrower geo:Nigeria, geo:Ghana, geo:Senegal .
+
+geo:EastAfrica a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "East Africa"@en ;
+    skos:broader geo:Africa ;
+    skos:narrower geo:Kenya, geo:Tanzania, geo:Ethiopia .
+
+geo:SouthernAfrica a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Southern Africa"@en ;
+    skos:broader geo:Africa ;
+    skos:narrower geo:SouthAfricaCountry, geo:Botswana, geo:Namibia .
+
+# === Regions: Americas ===
+geo:NorthAmerica a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "North America"@en ;
+    skos:broader geo:Americas ;
+    skos:narrower geo:UnitedStates, geo:Canada, geo:Mexico .
+
+geo:CentralAmerica a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Central America"@en ;
+    skos:broader geo:Americas ;
+    skos:narrower geo:CostaRica, geo:Panama, geo:Guatemala .
+
+geo:SouthAmerica a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "South America"@en ;
+    skos:broader geo:Americas ;
+    skos:narrower geo:Brazil, geo:Argentina, geo:Colombia, geo:Chile .
+
+geo:Caribbean a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Caribbean"@en ;
+    skos:broader geo:Americas ;
+    skos:narrower geo:Cuba, geo:Jamaica .
+
+# === Regions: Asia ===
+geo:EastAsia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "East Asia"@en ;
+    skos:broader geo:Asia ;
+    skos:narrower geo:China, geo:Japan, geo:SouthKorea .
+
+geo:SoutheastAsia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Southeast Asia"@en ;
+    skos:broader geo:Asia ;
+    skos:narrower geo:Thailand, geo:Vietnam, geo:Indonesia, geo:Singapore .
+
+geo:SouthAsia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "South Asia"@en ;
+    skos:broader geo:Asia ;
+    skos:narrower geo:India, geo:Pakistan, geo:SriLanka .
+
+geo:WestAsia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "West Asia"@en ;
+    skos:altLabel "Middle East"@en ;
+    skos:broader geo:Asia ;
+    skos:narrower geo:Turkey, geo:Israel, geo:UAE .
+
+geo:CentralAsia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Central Asia"@en ;
+    skos:broader geo:Asia ;
+    skos:narrower geo:Kazakhstan, geo:Uzbekistan .
+
+# === Regions: Europe ===
+geo:WesternEurope a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Western Europe"@en ;
+    skos:broader geo:Europe ;
+    skos:narrower geo:France, geo:Germany, geo:Netherlands, geo:Belgium .
+
+geo:EasternEurope a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Eastern Europe"@en ;
+    skos:broader geo:Europe ;
+    skos:narrower geo:Poland, geo:CzechRepublic, geo:Romania .
+
+geo:NorthernEurope a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Northern Europe"@en ;
+    skos:broader geo:Europe ;
+    skos:narrower geo:Sweden, geo:Norway, geo:Finland, geo:Denmark .
+
+geo:SouthernEurope a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Southern Europe"@en ;
+    skos:broader geo:Europe ;
+    skos:narrower geo:Italy, geo:Spain, geo:Portugal, geo:Greece, geo:Croatia .
+
+# === Regions: Oceania ===
+geo:Australasia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Australasia"@en ;
+    skos:broader geo:Oceania ;
+    skos:narrower geo:Australia, geo:NewZealand .
+
+geo:Melanesia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Melanesia"@en ;
+    skos:broader geo:Oceania ;
+    skos:narrower geo:Fiji, geo:PapuaNewGuinea .
+
+geo:Polynesia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Polynesia"@en ;
+    skos:broader geo:Oceania ;
+    skos:narrower geo:Samoa, geo:Tonga .
+
+# === Countries: Africa ===
+geo:Egypt a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Egypt"@en ;
+    skos:prefLabel "Ägypten"@de ;
+    skos:broader geo:NorthAfrica ;
+    skos:narrower geo:Cairo ;
+    skos:related geo:Israel .
+
+geo:Morocco a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Morocco"@en ;
+    skos:broader geo:NorthAfrica .
+
+geo:Tunisia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Tunisia"@en ;
+    skos:broader geo:NorthAfrica .
+
+geo:Nigeria a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Nigeria"@en ;
+    skos:broader geo:WestAfrica ;
+    skos:narrower geo:Lagos .
+
+geo:Ghana a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Ghana"@en ;
+    skos:broader geo:WestAfrica .
+
+geo:Senegal a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Senegal"@en ;
+    skos:broader geo:WestAfrica .
+
+geo:Kenya a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Kenya"@en ;
+    skos:broader geo:EastAfrica ;
+    skos:narrower geo:Nairobi .
+
+geo:Tanzania a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Tanzania"@en ;
+    skos:broader geo:EastAfrica .
+
+geo:Ethiopia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Ethiopia"@en ;
+    skos:broader geo:EastAfrica .
+
+geo:SouthAfricaCountry a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "South Africa"@en ;
+    skos:broader geo:SouthernAfrica ;
+    skos:narrower geo:CapeTown, geo:Johannesburg .
+
+geo:Botswana a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Botswana"@en ;
+    skos:broader geo:SouthernAfrica .
+
+geo:Namibia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Namibia"@en ;
+    skos:broader geo:SouthernAfrica .
+
+# === Countries: Americas ===
+geo:UnitedStates a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "United States"@en ;
+    skos:altLabel "USA"@en ;
+    skos:broader geo:NorthAmerica ;
+    skos:narrower geo:NewYork, geo:LosAngeles, geo:Chicago ;
+    skos:related geo:Canada .
+
+geo:Canada a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Canada"@en ;
+    skos:broader geo:NorthAmerica ;
+    skos:narrower geo:Toronto, geo:Vancouver ;
+    skos:related geo:UnitedStates .
+
+geo:Mexico a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Mexico"@en ;
+    skos:broader geo:NorthAmerica ;
+    skos:narrower geo:MexicoCity .
+
+geo:CostaRica a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Costa Rica"@en ;
+    skos:broader geo:CentralAmerica .
+
+geo:Panama a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Panama"@en ;
+    skos:broader geo:CentralAmerica .
+
+geo:Guatemala a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Guatemala"@en ;
+    skos:broader geo:CentralAmerica .
+
+geo:Brazil a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Brazil"@en ;
+    skos:prefLabel "Brasilien"@de ;
+    skos:broader geo:SouthAmerica ;
+    skos:narrower geo:SaoPaulo, geo:RioDeJaneiro .
+
+geo:Argentina a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Argentina"@en ;
+    skos:broader geo:SouthAmerica ;
+    skos:narrower geo:BuenosAires .
+
+geo:Colombia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Colombia"@en ;
+    skos:broader geo:SouthAmerica .
+
+geo:Chile a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Chile"@en ;
+    skos:broader geo:SouthAmerica .
+
+geo:Cuba a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Cuba"@en ;
+    skos:broader geo:Caribbean .
+
+geo:Jamaica a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Jamaica"@en ;
+    skos:broader geo:Caribbean .
+
+# === Countries: Asia ===
+geo:China a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "China"@en ;
+    skos:broader geo:EastAsia ;
+    skos:narrower geo:Beijing, geo:Shanghai .
+
+geo:Japan a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Japan"@en ;
+    skos:broader geo:EastAsia ;
+    skos:narrower geo:Tokyo ;
+    skos:related geo:SouthKorea .
+
+geo:SouthKorea a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "South Korea"@en ;
+    skos:broader geo:EastAsia ;
+    skos:narrower geo:Seoul ;
+    skos:related geo:Japan .
+
+geo:Thailand a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Thailand"@en ;
+    skos:broader geo:SoutheastAsia ;
+    skos:narrower geo:Bangkok .
+
+geo:Vietnam a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Vietnam"@en ;
+    skos:broader geo:SoutheastAsia .
+
+geo:Indonesia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Indonesia"@en ;
+    skos:broader geo:SoutheastAsia ;
+    skos:narrower geo:Jakarta .
+
+geo:Singapore a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Singapore"@en ;
+    skos:broader geo:SoutheastAsia .
+
+geo:India a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "India"@en ;
+    skos:prefLabel "Indien"@de ;
+    skos:broader geo:SouthAsia ;
+    skos:narrower geo:Mumbai, geo:Delhi .
+
+geo:Pakistan a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Pakistan"@en ;
+    skos:broader geo:SouthAsia .
+
+geo:SriLanka a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Sri Lanka"@en ;
+    skos:broader geo:SouthAsia .
+
+geo:Turkey a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Turkey"@en ;
+    skos:altLabel "Türkiye"@en ;
+    skos:broader geo:WestAsia ;
+    skos:narrower geo:Istanbul ;
+    skos:related geo:Greece .
+
+geo:Israel a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Israel"@en ;
+    skos:broader geo:WestAsia ;
+    skos:related geo:Egypt .
+
+geo:UAE a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "United Arab Emirates"@en ;
+    skos:altLabel "UAE"@en ;
+    skos:broader geo:WestAsia ;
+    skos:narrower geo:Dubai .
+
+geo:Kazakhstan a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Kazakhstan"@en ;
+    skos:broader geo:CentralAsia .
+
+geo:Uzbekistan a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Uzbekistan"@en ;
+    skos:broader geo:CentralAsia .
+
+# === Countries: Europe ===
+geo:France a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "France"@en ;
+    skos:prefLabel "Frankreich"@de ;
+    skos:broader geo:WesternEurope ;
+    skos:narrower geo:Paris ;
+    skos:related geo:Germany .
+
+geo:Germany a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Germany"@en ;
+    skos:prefLabel "Deutschland"@de ;
+    skos:broader geo:WesternEurope ;
+    skos:narrower geo:Berlin, geo:Munich ;
+    skos:related geo:France .
+
+geo:Netherlands a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Netherlands"@en ;
+    skos:altLabel "Holland"@en ;
+    skos:broader geo:WesternEurope ;
+    skos:narrower geo:Amsterdam .
+
+geo:Belgium a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Belgium"@en ;
+    skos:broader geo:WesternEurope .
+
+geo:Poland a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Poland"@en ;
+    skos:broader geo:EasternEurope ;
+    skos:narrower geo:Warsaw .
+
+geo:CzechRepublic a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Czech Republic"@en ;
+    skos:altLabel "Czechia"@en ;
+    skos:broader geo:EasternEurope ;
+    skos:narrower geo:Prague .
+
+geo:Romania a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Romania"@en ;
+    skos:broader geo:EasternEurope .
+
+geo:Sweden a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Sweden"@en ;
+    skos:broader geo:NorthernEurope ;
+    skos:narrower geo:Stockholm .
+
+geo:Norway a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Norway"@en ;
+    skos:broader geo:NorthernEurope .
+
+geo:Finland a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Finland"@en ;
+    skos:broader geo:NorthernEurope .
+
+geo:Denmark a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Denmark"@en ;
+    skos:broader geo:NorthernEurope .
+
+geo:Italy a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Italy"@en ;
+    skos:prefLabel "Italien"@de ;
+    skos:broader geo:SouthernEurope ;
+    skos:narrower geo:Rome, geo:Milan .
+
+geo:Spain a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Spain"@en ;
+    skos:broader geo:SouthernEurope ;
+    skos:narrower geo:Madrid, geo:Barcelona .
+
+geo:Portugal a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Portugal"@en ;
+    skos:broader geo:SouthernEurope ;
+    skos:narrower geo:Lisbon .
+
+geo:Greece a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Greece"@en ;
+    skos:broader geo:SouthernEurope ;
+    skos:narrower geo:Athens ;
+    skos:related geo:Turkey .
+
+geo:Croatia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Croatia"@en ;
+    skos:broader geo:SouthernEurope ;
+    skos:narrower geo:Zagreb .
+
+# === Countries: Oceania ===
+geo:Australia a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Australia"@en ;
+    skos:prefLabel "Australien"@de ;
+    skos:broader geo:Australasia ;
+    skos:narrower geo:Sydney, geo:Melbourne .
+
+geo:NewZealand a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "New Zealand"@en ;
+    skos:broader geo:Australasia ;
+    skos:narrower geo:Auckland .
+
+geo:Fiji a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Fiji"@en ;
+    skos:broader geo:Melanesia .
+
+geo:PapuaNewGuinea a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Papua New Guinea"@en ;
+    skos:broader geo:Melanesia .
+
+geo:Samoa a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Samoa"@en ;
+    skos:broader geo:Polynesia .
+
+geo:Tonga a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Tonga"@en ;
+    skos:broader geo:Polynesia .
+
+# === Cities ===
+geo:Cairo a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Cairo"@en ;
+    skos:broader geo:Egypt .
+
+geo:Lagos a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Lagos"@en ;
+    skos:broader geo:Nigeria .
+
+geo:Nairobi a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Nairobi"@en ;
+    skos:broader geo:Kenya .
+
+geo:CapeTown a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Cape Town"@en ;
+    skos:broader geo:SouthAfricaCountry .
+
+geo:Johannesburg a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Johannesburg"@en ;
+    skos:broader geo:SouthAfricaCountry .
+
+geo:NewYork a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "New York"@en ;
+    skos:broader geo:UnitedStates .
+
+geo:LosAngeles a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Los Angeles"@en ;
+    skos:broader geo:UnitedStates .
+
+geo:Chicago a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Chicago"@en ;
+    skos:broader geo:UnitedStates .
+
+geo:Toronto a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Toronto"@en ;
+    skos:broader geo:Canada .
+
+geo:Vancouver a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Vancouver"@en ;
+    skos:broader geo:Canada .
+
+geo:MexicoCity a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Mexico City"@en ;
+    skos:broader geo:Mexico .
+
+geo:SaoPaulo a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "São Paulo"@en ;
+    skos:broader geo:Brazil .
+
+geo:RioDeJaneiro a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Rio de Janeiro"@en ;
+    skos:broader geo:Brazil .
+
+geo:BuenosAires a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Buenos Aires"@en ;
+    skos:broader geo:Argentina .
+
+geo:Beijing a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Beijing"@en ;
+    skos:altLabel "Peking"@en ;
+    skos:broader geo:China .
+
+geo:Shanghai a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Shanghai"@en ;
+    skos:broader geo:China .
+
+geo:Tokyo a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Tokyo"@en ;
+    skos:broader geo:Japan .
+
+geo:Seoul a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Seoul"@en ;
+    skos:broader geo:SouthKorea .
+
+geo:Bangkok a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Bangkok"@en ;
+    skos:broader geo:Thailand .
+
+geo:Jakarta a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Jakarta"@en ;
+    skos:broader geo:Indonesia .
+
+geo:Mumbai a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Mumbai"@en ;
+    skos:altLabel "Bombay"@en ;
+    skos:broader geo:India .
+
+geo:Delhi a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Delhi"@en ;
+    skos:broader geo:India .
+
+geo:Istanbul a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Istanbul"@en ;
+    skos:broader geo:Turkey .
+
+geo:Dubai a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Dubai"@en ;
+    skos:broader geo:UAE .
+
+geo:Paris a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Paris"@en ;
+    skos:broader geo:France .
+
+geo:Berlin a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Berlin"@en ;
+    skos:broader geo:Germany .
+
+geo:Munich a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Munich"@en ;
+    skos:prefLabel "München"@de ;
+    skos:broader geo:Germany .
+
+geo:Amsterdam a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Amsterdam"@en ;
+    skos:broader geo:Netherlands .
+
+geo:Warsaw a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Warsaw"@en ;
+    skos:broader geo:Poland .
+
+geo:Prague a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Prague"@en ;
+    skos:broader geo:CzechRepublic .
+
+geo:Stockholm a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Stockholm"@en ;
+    skos:broader geo:Sweden .
+
+geo:Rome a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Rome"@en ;
+    skos:broader geo:Italy .
+
+geo:Milan a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Milan"@en ;
+    skos:broader geo:Italy .
+
+geo:Madrid a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Madrid"@en ;
+    skos:broader geo:Spain .
+
+geo:Barcelona a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Barcelona"@en ;
+    skos:broader geo:Spain .
+
+geo:Lisbon a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Lisbon"@en ;
+    skos:broader geo:Portugal .
+
+geo:Athens a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Athens"@en ;
+    skos:broader geo:Greece .
+
+geo:Zagreb a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Zagreb"@en ;
+    skos:broader geo:Croatia .
+
+geo:Sydney a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Sydney"@en ;
+    skos:broader geo:Australia .
+
+geo:Melbourne a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Melbourne"@en ;
+    skos:broader geo:Australia .
+
+geo:Auckland a skos:Concept ;
+    skos:inScheme geo:GeographyScheme ;
+    skos:prefLabel "Auckland"@en ;
+    skos:broader geo:NewZealand .

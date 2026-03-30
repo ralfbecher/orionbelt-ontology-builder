@@ -36,5 +36,3 @@ Thumbs.db
 !samples/*.owl
 !samples/*.rdf
 
-# Large sample files (download separately)
-samples/unesco-thesaurus.ttl

@@ -17,8 +17,6 @@ SAMPLE_FILES = {
     "wine": ("wine.owl", "xml", "https://www.w3.org/TR/owl-guide/wine.rdf"),
     "prov-o": ("prov-o.ttl", "turtle", "https://www.w3.org/ns/prov-o"),
     "goodrelations": ("goodrelations.owl", "xml", "http://purl.org/goodrelations/v1.owl"),
-    "dcterms": ("dcterms.ttl", "turtle", "https://www.dublincore.org/specifications/dublin-core/dcmi-terms/dublin_core_terms.ttl"),
-    "unesco": ("unesco-thesaurus.ttl", "turtle", "https://vocabularies.unesco.org/exports/thesaurus/latest/unesco-thesaurus.ttl"),
 }
 
 

@@ -17,6 +17,10 @@
 
 **Try it now:** [orionbelt.streamlit.app](https://orionbelt.streamlit.app/)
 
+<p align="center">
+  <img src="docs/assets/OrionBelt_Ontology_Builder.png" alt="OrionBelt Ontology Builder Screenshot" width="800">
+</p>
+
 ---
 
 ## What is this?
@@ -135,8 +139,9 @@ Open http://localhost:8501
 | **Annotations**     | RDFS, SKOS, Dublin Core annotations with bulk editing          |
 | **SKOS Vocabulary** | Concept schemes, concepts, hierarchy, SKOS validation          |
 | **Import / Export** | File import with merge review, export, new ontology, templates |
+| **Source**          | Live Turtle source view of the ontology                        |
 | **Validation**      | Ontology validation and OWL reasoning                          |
-| **Visualization**   | Interactive graph, hierarchy tree, statistics                   |
+| **Visualization**   | Interactive graph (OWL + SKOS), hierarchy tree, statistics     |
 
 ## Project structure
 

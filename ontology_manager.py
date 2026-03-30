@@ -1959,9 +1959,19 @@ class OntologyManager:
             "total_triples": len(temp),
         }
 
+        # Extract incoming ontology metadata
+        incoming_meta = {}
+        for ont_uri in temp.subjects(RDF.type, OWL.Ontology):
+            label = temp.value(ont_uri, RDFS.label)
+            if label:
+                incoming_meta["label"] = str(label)
+            incoming_meta["uri"] = str(ont_uri)
+            break
+
         return {
             "diff": diff,
             "incoming_stats": incoming_stats,
+            "incoming_meta": incoming_meta,
             "conflicts": conflicts,
             "prefix_conflicts": prefix_conflicts,
         }
@@ -2782,6 +2792,9 @@ class OntologyManager:
 
         for _ in self.graph.subjects(RDF.type, OWL.Restriction):
             stats["restrictions"] += 1
+
+        stats["concept_schemes"] = sum(1 for _ in self.graph.subjects(RDF.type, SKOS.ConceptScheme))
+        stats["concepts"] = sum(1 for _ in self.graph.subjects(RDF.type, SKOS.Concept))
 
         return stats
 

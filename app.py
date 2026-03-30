@@ -49,18 +49,22 @@ st.markdown("""
         border-radius: 4px;
         color: #721c24;
     }
-    /* Reduce top margin/padding */
-    .block-container {
-        padding-top: 2rem !important;
-        padding-bottom: 0.5rem !important;
+    /* Reduce margin/padding */
+    .block-container, .stMainBlockContainer,
+    [data-testid="stAppViewBlockContainer"] {
+        padding-top: 2.5rem !important;
+        padding-bottom: 0 !important;
     }
-    .stMainBlockContainer {
-        padding-top: 2rem !important;
-        padding-bottom: 0.5rem !important;
+    footer, [data-testid="stBottom"] {
+        display: none !important;
     }
-    /* Reduce iframe container margins */
+    .main .block-container { min-height: 0 !important; }
+    /* Reduce iframe and element spacing */
     iframe {
         margin-bottom: 0 !important;
+    }
+    [data-testid="stCustomComponentV1"] {
+        margin-bottom: -1rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -90,6 +94,13 @@ def init_session_state():
         st.session_state.messages = []
     if "flash_message" not in st.session_state:
         st.session_state.flash_message = None
+    # On first run with empty ontology, start on Import/Export page
+    if "initial_nav_set" not in st.session_state:
+        st.session_state.initial_nav_set = True
+        ont = st.session_state.ontology
+        _s = ont.get_statistics()
+        if _s["classes"] == 0 and _s["object_properties"] == 0 and _s["data_properties"] == 0 and _s.get("concepts", 0) == 0:
+            st.session_state["nav_radio"] = "Import / Export"
 
 
 def save_checkpoint(label: str = "Edit"):
@@ -2073,7 +2084,8 @@ def render_import_export():
         # Check if ontology is empty (only default scaffolding, no user content)
         _stats = ont.get_statistics()
         _ont_is_empty = (_stats["classes"] == 0 and _stats["object_properties"] == 0
-                         and _stats["data_properties"] == 0 and _stats["individuals"] == 0)
+                         and _stats["data_properties"] == 0 and _stats["individuals"] == 0
+                         and _stats.get("concepts", 0) == 0)
 
         def _direct_import(content, format_):
             """Import directly without preview (for empty ontologies)."""
@@ -2084,6 +2096,8 @@ def render_import_export():
                 set_flash_message(
                     f"Ontology imported successfully! ({len(ont.graph)} triples)", "success"
                 )
+                # Clear file uploader by incrementing its key
+                st.session_state["import_uploader_key"] = st.session_state.get("import_uploader_key", 0) + 1
                 st.rerun()
             except Exception as e:
                 show_message(f"Error importing ontology: {str(e)}", "error")
@@ -2096,7 +2110,8 @@ def render_import_export():
                 uploaded_file = st.file_uploader(
                     "Choose an ontology file",
                     type=["ttl", "owl", "rdf", "xml", "n3", "nt", "jsonld", "json"],
-                    help="Supported formats: Turtle (.ttl), RDF/XML (.owl, .rdf, .xml), N3 (.n3), N-Triples (.nt), JSON-LD (.jsonld, .json)"
+                    help="Supported formats: Turtle (.ttl), RDF/XML (.owl, .rdf, .xml), N3 (.n3), N-Triples (.nt), JSON-LD (.jsonld, .json)",
+                    key=f"import_uploader_{st.session_state.get('import_uploader_key', 0)}",
                 )
 
                 if uploaded_file:
@@ -2190,12 +2205,53 @@ def render_import_export():
                 st.metric("Individuals", current_stats["individuals"])
                 st.metric("Total Triples", current_stats["total_triples"])
             with col_inc:
-                st.caption("Incoming Content")
+                incoming_meta = preview.get("incoming_meta", {})
+                inc_label = incoming_meta.get("label", "")
+                inc_uri = incoming_meta.get("uri", "")
+                if inc_label:
+                    st.caption(f"Incoming Content — **{inc_label}**")
+                elif inc_uri:
+                    st.caption(f"Incoming Content — {inc_uri}")
+                else:
+                    st.caption("Incoming Content")
                 st.metric("Classes", incoming_stats["classes"])
                 st.metric("Object Properties", incoming_stats["object_properties"])
                 st.metric("Data Properties", incoming_stats["data_properties"])
                 st.metric("Individuals", incoming_stats["individuals"])
                 st.metric("Total Triples", incoming_stats["total_triples"])
+
+            # Apply / Cancel buttons (compact, above the change report)
+            col_apply, col_cancel, col_spacer = st.columns([1, 1, 4])
+            with col_apply:
+                if st.button("Apply Import", type="primary"):
+                    try:
+                        content = st.session_state.import_content
+                        format_ = st.session_state.import_format
+                        if selected_strategy == IMPORT_REPLACE:
+                            ont.load_from_string(content, format=format_)
+                        else:
+                            result = ont.merge_from_string(
+                                content, format=format_, strategy=selected_strategy
+                            )
+                        st.session_state.ontology = ont
+                        save_checkpoint("Import ontology")
+                        st.session_state.import_preview = None
+                        st.session_state.import_content = None
+                        st.session_state.import_format = None
+                        triples = len(ont.graph)
+                        set_flash_message(
+                            f"Ontology imported successfully! ({triples} triples)",
+                            "success",
+                        )
+                        st.rerun()
+                    except Exception as e:
+                        show_message(f"Error applying import: {str(e)}", "error")
+            with col_cancel:
+                if st.button("Cancel"):
+                    st.session_state.import_preview = None
+                    st.session_state.import_content = None
+                    st.session_state.import_format = None
+                    st.rerun()
 
             # Diff summary
             with st.expander(
@@ -2250,40 +2306,6 @@ def render_import_export():
                 file_name="change_report.md",
                 mime="text/markdown",
             )
-
-            # Step 3: Apply / Cancel
-            col_apply, col_cancel = st.columns(2)
-            with col_apply:
-                if st.button("Apply Import", type="primary", use_container_width=True):
-                    try:
-                        content = st.session_state.import_content
-                        format_ = st.session_state.import_format
-                        if selected_strategy == IMPORT_REPLACE:
-                            ont.load_from_string(content, format=format_)
-                        else:
-                            result = ont.merge_from_string(
-                                content, format=format_, strategy=selected_strategy
-                            )
-                        st.session_state.ontology = ont
-                        save_checkpoint("Import ontology")
-                        # Clear preview state
-                        st.session_state.import_preview = None
-                        st.session_state.import_content = None
-                        st.session_state.import_format = None
-                        triples = len(ont.graph)
-                        set_flash_message(
-                            f"Ontology imported successfully! ({triples} triples)",
-                            "success",
-                        )
-                        st.rerun()
-                    except Exception as e:
-                        show_message(f"Error applying import: {str(e)}", "error")
-            with col_cancel:
-                if st.button("Cancel", use_container_width=True):
-                    st.session_state.import_preview = None
-                    st.session_state.import_content = None
-                    st.session_state.import_format = None
-                    st.rerun()
 
     with tab2:
         st.subheader("Export Ontology")
@@ -2680,31 +2702,42 @@ def render_visualization():
     stats = ont.get_statistics()
 
     if stats["content_triples"] == 0:
-        st.info("No content to visualize. Add classes, properties, or individuals first.")
+        st.info("No content to visualize. Add classes, properties, individuals, or SKOS concepts first.")
         return
 
     tab1, tab2, tab3 = st.tabs(["Interactive Graph", "Class Hierarchy", "Statistics"])
 
     with tab1:
-        st.subheader("Interactive Ontology Graph")
-
-        # Graph options - row 1: what to show
-        col1, col2, col3, col4, col5 = st.columns(5)
-        with col1:
-            show_classes = st.checkbox("Classes", value=True)
-        with col2:
-            show_properties = st.checkbox("Obj Props", value=True)
-        with col3:
+        # Row 1: entity type checkboxes + maximize
+        _has_skos = stats.get("concepts", 0) > 0
+        _has_owl = stats["classes"] > 0 or stats["object_properties"] > 0 or stats["data_properties"] > 0
+        _cols = st.columns([1, 1, 1, 1, 1, 1, 1]) if _has_skos else st.columns([1, 1, 1, 1, 1, 1])
+        with _cols[0]:
+            show_classes = st.checkbox("Classes", value=_has_owl)
+        with _cols[1]:
+            show_properties = st.checkbox("Obj Props", value=_has_owl)
+        with _cols[2]:
             show_data_props = st.checkbox("Data Props", value=False)
-        with col4:
+        with _cols[3]:
             show_annotations = st.checkbox("Annotations", value=False)
-        with col5:
+        with _cols[4]:
             show_individuals = st.checkbox("Individuals", value=False)
+        if _has_skos:
+            with _cols[5]:
+                show_skos = st.checkbox("SKOS", value=True)
+            with _cols[6]:
+                maximize = st.checkbox("Maximize", help="Expand graph to full height")
+        else:
+            show_skos = False
+            with _cols[5]:
+                maximize = st.checkbox("Maximize", help="Expand graph to full height")
 
-        # Graph options - row 2: layout controls
-        col1, col2, col3 = st.columns([1, 2, 1])
+        # Row 2: sliders + validation + render button
+        col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
         with col1:
-            height = st.slider("Graph Height", 300, 1200, 500, step=100)
+            height = st.slider("Graph Height", 300, 1200, 670, step=10)
+            if maximize:
+                height = 1200
         with col2:
             node_spacing = st.slider(
                 "Node Spacing",
@@ -2712,10 +2745,10 @@ def render_visualization():
                 help="Distance between nodes. Increase for less overlap."
             )
         with col3:
+            highlight_issues = st.checkbox("Highlight validation issues", value=False)
+        with col4:
             render_graph = st.button("Render Graph", type="primary", use_container_width=True)
 
-        # Validation highlighting option
-        highlight_issues = st.checkbox("Highlight validation issues", value=False)
         validation_subjects = set()
         if highlight_issues:
             issues = ont.validate()
@@ -2733,8 +2766,8 @@ def render_visualization():
 
         # Store graph settings in session state for caching
         selected_classes_key = "_".join(sorted(selected_classes)) if selected_classes else "none"
-        _graph_ver = 11  # Bump to invalidate cached graph data after code changes
-        graph_key = f"v{_graph_ver}_{show_classes}_{show_properties}_{show_data_props}_{show_annotations}_{show_individuals}_{height}_{node_spacing}_{highlight_issues}_{hash(selected_classes_key)}"
+        _graph_ver = 12  # Bump to invalidate cached graph data after code changes
+        graph_key = f"v{_graph_ver}_{show_classes}_{show_properties}_{show_data_props}_{show_annotations}_{show_individuals}_{show_skos}_{height}_{node_spacing}_{highlight_issues}_{hash(selected_classes_key)}"
         if "last_graph_key" not in st.session_state:
             st.session_state.last_graph_key = None
             st.session_state.last_graph_data = None
@@ -3002,6 +3035,47 @@ def render_visualization():
                         except Exception:
                             pass  # Skip problematic annotations
 
+            # Add SKOS concepts and relations
+            if show_skos and node_count < max_nodes:
+                concepts = ont.get_concepts()
+                skos_node_ids = set()
+                for concept in concepts:
+                    if node_count >= max_nodes:
+                        break
+                    c_id = f"skos_{concept['name']}"
+                    label = concept.get("pref_label") or concept["name"]
+                    title = f"SKOS Concept: {concept['name']}"
+                    if concept.get("pref_label"):
+                        title += f"\nprefLabel: {concept['pref_label']}"
+                    if concept.get("definition"):
+                        title += f"\nDefinition: {concept['definition'][:100]}"
+                    if concept.get("scheme"):
+                        title += f"\nScheme: {concept['scheme']}"
+                    net.add_node(c_id, label=label, title=title,
+                               color={"background": "#00897B", "border": "#00695C"},
+                               shape="box", size=20,
+                               ntype="SKOS Concept", ename=concept["name"])
+                    skos_node_ids.add(c_id)
+                    node_count += 1
+
+                # Add broader/narrower/related edges
+                for concept in concepts:
+                    c_id = f"skos_{concept['name']}"
+                    if c_id not in skos_node_ids:
+                        continue
+                    for broader in concept.get("broader", []):
+                        b_id = f"skos_{broader}"
+                        if b_id in skos_node_ids:
+                            net.add_edge(c_id, b_id, label="broader",
+                                       title=f"Broader: {concept['name']} → {broader}",
+                                       color="#26A69A", arrows="to")
+                    for related in concept.get("related", []):
+                        r_id = f"skos_{related}"
+                        if r_id in skos_node_ids:
+                            net.add_edge(c_id, r_id, label="related",
+                                       title=f"Related: {concept['name']} ↔ {related}",
+                                       color="#80CBC4", arrows="", dashes=True)
+
             # Generate and display the graph using custom component
             try:
                 import json as _json
@@ -3032,7 +3106,7 @@ def render_visualization():
 
             selection = _graph_component(
                 nodes=gdata["nodes"], edges=gdata["edges"], options=gdata["options"],
-                height=height - 80, key="graph_viewer", default=None
+                height=height, key="graph_viewer", default=None
             )
 
             # Status bar outside iframe — dark styled
@@ -3161,6 +3235,17 @@ def render_visualization():
             st.write(f"- Content Triples: {stats['content_triples']}")
 
 
+def render_source():
+    """Render the source view page."""
+    st.header("Source (Turtle)")
+    ont = st.session_state.ontology
+    try:
+        turtle_src = ont.export_to_string(format="turtle")
+        st.code(turtle_src, language="turtle", line_numbers=True)
+    except Exception as e:
+        st.error(f"Error serializing ontology: {e}")
+
+
 def main():
     """Main application entry point."""
     init_session_state()
@@ -3182,6 +3267,7 @@ def main():
         "Annotations": render_annotations,
         "SKOS Vocabulary": render_skos_vocabulary,
         "Import / Export": render_import_export,
+        "Source": render_source,
         "Validation": render_validation,
         "Visualization": render_visualization
     }
@@ -3276,6 +3362,8 @@ def main():
     st.sidebar.write(f"🔗 Object Props: {stats['object_properties']}")
     st.sidebar.write(f"📝 Data Props: {stats['data_properties']}")
     st.sidebar.write(f"👤 Individuals: {stats['individuals']}")
+    if stats.get('concepts', 0) > 0:
+        st.sidebar.write(f"🏷️ SKOS Concepts: {stats['concepts']}")
     st.sidebar.write(f"📊 Triples: {stats['content_triples']}")
 
     # Show ontology name in main area
