@@ -12,6 +12,7 @@ __pycache__/
 design/
 dist/
 build/
+.claude/settings.local.json
 
 # IDE
 .idea/
@@ -30,4 +31,11 @@ Thumbs.db
 *.ttl
 *.owl
 *.rdf
-!examples/*.ttl
+
+!samples/*.ttl
+!samples/*.owl
+!samples/*.rdf
+
+# Large sample files (download separately)
+samples/schema-org.ttl
+samples/unesco-thesaurus.ttl

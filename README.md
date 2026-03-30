@@ -4,7 +4,7 @@
 
 <h1 align="center">OrionBelt Ontology Builder</h1>
 
-<p align="center"><strong>Build, edit, and manage OWL ontologies visually with a Streamlit web application</strong></p>
+<p align="center"><strong>A browser-based ontology workbench built with Streamlit and rdflib</strong></p>
 
 [![GitHub stars](https://img.shields.io/github/stars/ralfbecher/orionbelt-ontology-builder?style=social)](https://github.com/ralfbecher/orionbelt-ontology-builder)
 [![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-purple.svg)](https://github.com/ralfbecher/orionbelt-ontology-builder/releases)
@@ -17,131 +17,57 @@
 
 **Try it now:** [orionbelt.streamlit.app](https://orionbelt.streamlit.app/)
 
+---
+
+## What is this?
+
+OrionBelt lets you build, edit, and maintain OWL ontologies and SKOS vocabularies in your browser. No Java, no desktop install - just `pip install` and go.
+
+It's not trying to be Protégé. It's meant for people who want something lighter: a workbench that's easy to pick up, hard to break things with, and good enough for real ontology work.
+
+## What it's good at
+
+**Not losing your work.** Every change creates an undo checkpoint. Deletes show you what will break before you confirm. Imports show a diff so you can review before applying.
+
+**Keeping your ontology clean.** Validation catches orphan classes, duplicate labels, domain/range mismatches, missing annotations, and SKOS-specific issues like broader/narrower cycles. Not just "you have warnings" but "here's what's wrong and where."
+
+**Moving fast in large ontologies.** Global search across everything. Usage/backlink views for any resource. Click a node in the graph and jump straight to the editor. Bulk add/edit/delete so you're not filling out forms one entity at a time.
+
+**Working with others.** Merge-aware imports with three strategies (replace, merge, merge-overwrite). Conflict detection. Prefix reconciliation. Change reports you can download. You can actually review what an import would do before committing it.
+
+---
+
 ## Features
 
-### Core Functionality
+### Ontology editing
 
-- **Create & Edit Ontologies** - Build ontologies from scratch or modify existing ones
-- **Import/Export** - Support for Turtle (.ttl), RDF/XML (.owl), N-Triples (.nt), N3 (.n3), and JSON-LD formats
-- **Validation** - Check for missing labels, domains, ranges, and other issues
-- **Reasoning** - Apply RDFS and OWL-RL reasoning to infer new triples
-- **Undo/Redo** - Full undo/redo history for all ontology modifications
-- **Global Search** - Search across all ontology elements
-- **Graph Visualization** - Interactive vis-network graph with class filtering and layout options
+Full CRUD for classes, object/data properties, individuals, restrictions, relations, and annotations. Hierarchy management, rename with reference updates, and tabbed editing per entity type.
 
-### Ontology Elements
+### Bulk operations
 
-| Element               | Operations                                               |
-| --------------------- | -------------------------------------------------------- |
-| **Classes**           | Create, edit, delete with hierarchy (subClassOf)         |
-| **Object Properties** | Domain/range, functional, transitive, symmetric, inverse |
-| **Data Properties**   | XSD datatypes (string, integer, date, boolean, etc.)     |
-| **Individuals**       | Create instances, assign classes, property values        |
-| **Restrictions**      | someValuesFrom, allValuesFrom, cardinality constraints   |
-| **Annotations**       | RDFS labels/comments, SKOS, Dublin Core metadata         |
-| **Relations**         | equivalentClass, disjointWith, sameAs, differentFrom     |
+Every entity page has a Bulk Operations tab:
 
-## Quick Start
+- **Add** - paste names (one per line) or CSV with headers like `Name, Label, Parent`
+- **Edit** - spreadsheet view of all entities with editable labels, comments, parents
+- **Delete** - multi-select and remove in one go
 
-### Prerequisites
+Annotations have their own bulk editor with per-row add/delete actions.
 
-- Python 3.10+
+### SKOS vocabularies
 
-### Installation
+A dedicated page for building controlled vocabularies:
 
-```bash
-git clone https://github.com/ralfbecher/orionbelt-ontology-builder.git
-cd orionbelt-ontology-builder
-pip install -r requirements.txt
-```
+- Concept schemes with concept counts
+- Concepts with prefLabel, definition, broader/narrower (inverses auto-managed)
+- Hierarchy tree view, filterable by scheme
+- Full SKOS relation support (broader, narrower, related, all match types)
+- SKOS validation: missing prefLabels, orphans, duplicate labels, cycles
 
-### Run the Application
+### Templates
 
-```bash
-streamlit run app.py
-```
+Five starter templates you can merge into or replace your current ontology: Organization, Product Catalog, Event, Person/Contact, and SKOS Thesaurus. Each is a valid Turtle snippet with a preview before you apply it.
 
-Open your browser at http://localhost:8501
-
-### Workflow
-
-1. **Create New or Import** - Start with a new ontology or import an existing .ttl file
-2. **Define Classes** - Create your class hierarchy
-3. **Add Properties** - Define object and data properties
-4. **Create Individuals** - Add instances of your classes
-5. **Define Relations** - Set up class/property/individual relationships
-6. **Add Restrictions** - Apply constraints to classes
-7. **Validate** - Check for issues using the validation button
-8. **Export** - Download your ontology as .ttl or other formats
-
-## Pages Overview
-
-### Dashboard
-
-- Ontology metadata (title, description, version, creator)
-- Base URI configuration
-- Statistics overview
-- Quick validation button
-
-### Classes
-
-- View class hierarchy
-- Add/edit/delete classes
-- Set parent classes (subClassOf)
-
-### Properties
-
-- **Object Properties** - Relations between individuals
-  - Characteristics: Functional, InverseFunctional, Transitive, Symmetric
-  - Domain and range (classes)
-- **Data Properties** - Attributes with literal values
-  - XSD datatypes: string, integer, float, boolean, date, dateTime, etc.
-
-### Individuals
-
-- Create named individuals
-- Assign to classes
-- Add property values (object or data)
-
-### Relations
-
-- **Class Relations**: subClassOf, equivalentClass, disjointWith
-- **Property Relations**: subPropertyOf, equivalentProperty, inverseOf
-- **Individual Relations**: sameAs, differentFrom
-
-### Restrictions
-
-- someValuesFrom / allValuesFrom
-- hasValue
-- Cardinality (min, max, exact)
-- Qualified cardinality
-
-### Annotations
-
-- RDFS: label, comment, seeAlso, isDefinedBy
-- SKOS: prefLabel, altLabel, definition, example, note
-- Dublin Core: title, description, creator, contributor, date
-
-### Import / Export
-
-- **Import**: Upload files or paste content
-- **Export**: Generate and download in multiple formats
-- **New Ontology**: Create a fresh ontology with custom base URI
-
-### Validation
-
-- Check for missing labels, domains, ranges
-- Identify untyped individuals
-- Apply OWL reasoning (RDFS, OWL-RL)
-
-### Visualization
-
-- Interactive graph visualization with vis-network
-- Class hierarchy tree view
-- Statistics charts
-- Class filter and configurable graph limits
-
-## Supported Formats
+### Import & export
 
 | Format    | Extension  | Import | Export |
 | --------- | ---------- | ------ | ------ |
@@ -149,70 +75,89 @@ Open your browser at http://localhost:8501
 | RDF/XML   | .owl, .rdf | ✅     | ✅     |
 | N-Triples | .nt        | ✅     | ✅     |
 | N3        | .n3        | ✅     | ✅     |
-| JSON-LD   | .jsonld    | ❌     | ✅     |
+| JSON-LD   | .jsonld    | ✅     | ✅     |
 
-## Project Structure
+Imports on an empty ontology go straight through. Otherwise you get a review panel: diff summary, conflict table, prefix changes, import mode selector, and a downloadable change report.
+
+### Validation & reasoning
+
+- Missing labels, domains, ranges
+- Orphan classes, duplicate labels, domain/range mismatches
+- Untyped individuals
+- SKOS checks (see above)
+- RDFS and OWL-RL reasoning via owlrl
+
+### Visualization
+
+Interactive vis-network graph with class filtering, configurable node limits, click-to-navigate into the editor, hierarchy tree view, and statistics charts.
+
+### Safety
+
+- Full undo/redo with labeled checkpoints
+- Delete impact analysis before confirmation
+- Bulk operations create a single undo point
+- Namespace prefix management from the Dashboard
+
+---
+
+## Quick Start
+
+```bash
+# Clone and install
+git clone https://github.com/ralfbecher/orionbelt-ontology-builder.git
+cd orionbelt-ontology-builder
+pip install -r requirements.txt
+
+# Or install from PyPI
+pip install orionbelt-ontology-builder
+
+# Run
+streamlit run app.py
+```
+
+Open http://localhost:8501
+
+---
+
+## Pages
+
+| Page                | What it does                                                   |
+| ------------------- | -------------------------------------------------------------- |
+| **Dashboard**       | Metadata, base URI, statistics, prefix management, validation  |
+| **Classes**         | Class hierarchy, CRUD, bulk operations                         |
+| **Properties**      | Object & data properties, CRUD, bulk operations                |
+| **Individuals**     | Instance management, property assertions, bulk operations      |
+| **Relations**       | Class, property, and individual relations                      |
+| **Restrictions**    | OWL restrictions and cardinality constraints                   |
+| **Advanced**        | Advanced OWL features                                          |
+| **Annotations**     | RDFS, SKOS, Dublin Core annotations with bulk editing          |
+| **SKOS Vocabulary** | Concept schemes, concepts, hierarchy, SKOS validation          |
+| **Import / Export** | File import with merge review, export, new ontology, templates |
+| **Validation**      | Ontology validation and OWL reasoning                          |
+| **Visualization**   | Interactive graph, hierarchy tree, statistics                   |
+
+## Project structure
 
 ```
 orionbelt-ontology-builder/
-├── app.py                 # Streamlit UI application
-├── ontology_manager.py    # Core OWL operations using rdflib
-├── requirements.txt       # Python dependencies
+├── app.py                 # Streamlit UI
+├── ontology_manager.py    # Core OWL/SKOS engine (rdflib)
+├── templates.py           # Built-in ontology templates
 ├── pyproject.toml         # Project metadata
-├── lib/                   # Frontend vendor libraries
-│   ├── vis-9.1.2/         # vis-network for graph visualization
-│   ├── tom-select/        # Tom Select for enhanced dropdowns
-│   └── bindings/          # JavaScript utility bindings
-└── docs/
-    └── assets/            # Logo assets
+├── lib/                   # Frontend libraries (vis-network, Tom Select)
+├── tests/                 # 168 pytest tests
+└── docs/assets/           # Logos
 ```
 
-## Dependencies
+Dependencies: streamlit, rdflib, owlrl, networkx, pyvis.
 
-- **streamlit** - Web UI framework
-- **rdflib** - RDF/OWL parsing and serialization
-- **owlrl** - OWL-RL reasoning
-- **networkx** - Graph operations
-- **pyvis** - Network visualization
-
-## OWL Concepts Reference
-
-### Class Axioms
-
-```turtle
-:Person a owl:Class .
-:Student rdfs:subClassOf :Person .
-:Male owl:disjointWith :Female .
-```
-
-### Property Axioms
-
-```turtle
-:hasParent a owl:ObjectProperty ;
-    rdfs:domain :Person ;
-    rdfs:range :Person ;
-    owl:inverseOf :hasChild .
-
-:hasAge a owl:DatatypeProperty ;
-    rdfs:domain :Person ;
-    rdfs:range xsd:integer .
-```
-
-### Restrictions
-
-```turtle
-:Parent rdfs:subClassOf [
-    a owl:Restriction ;
-    owl:onProperty :hasChild ;
-    owl:someValuesFrom :Person
-] .
-```
+---
 
 ## Companion Project
 
 ### [OrionBelt Analytics](https://github.com/ralfbecher/orionbelt-analytics)
 
-OrionBelt Analytics is an ontology-based MCP server that analyzes relational database schemas and generates RDF/OWL ontologies with embedded SQL mappings. It connects to PostgreSQL, Snowflake, and Dremio, providing AI assistants with deep structural and semantic understanding of your data. Together with the Ontology Builder, they form a comprehensive toolkit for ontology-driven data modeling.
+An ontology-based MCP server that analyzes relational database schemas (PostgreSQL, Snowflake, Dremio) and generates RDF/OWL ontologies with embedded SQL mappings. Together with the Ontology Builder, they form a toolkit for ontology-driven data modeling.
 
 ## License
 
