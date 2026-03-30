@@ -80,8 +80,12 @@ def init_session_state():
             OntologyManager = get_ontology_manager_class()
             st.session_state.ontology = OntologyManager()
     if "undo_manager" not in st.session_state:
-        from ontology_manager import UndoManager
-        st.session_state.undo_manager = UndoManager(st.session_state.ontology)
+        try:
+            from ontology_manager import UndoManager
+            st.session_state.undo_manager = UndoManager(st.session_state.ontology)
+        except ImportError as e:
+            st.error(f"Failed to load UndoManager: {e}")
+            st.session_state.undo_manager = None
     if "messages" not in st.session_state:
         st.session_state.messages = []
     if "flash_message" not in st.session_state:
@@ -90,7 +94,7 @@ def init_session_state():
 
 def save_checkpoint(label: str = "Edit"):
     """Save a snapshot to the undo history after a mutation."""
-    if "undo_manager" in st.session_state:
+    if st.session_state.get("undo_manager"):
         st.session_state.undo_manager.checkpoint(label)
 
 
