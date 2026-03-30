@@ -373,12 +373,19 @@ def render_classes():
             # Class hierarchy view
             st.subheader("Class Hierarchy")
 
-            # Sort classes by display name for consistent ordering
+            # Sort classes by display name, but put actively viewed class first
             sorted_classes = sorted(classes, key=lambda c: format_label_name(c['name'], c.get('label')).lower())
+            _active_cls = next((c for c in sorted_classes if st.session_state.get(f"view_class_{c['name']}", False) or st.session_state.get(f"edit_class_{c['name']}", False)), None)
+            if _active_cls:
+                for c in sorted_classes:
+                    if c["name"] != _active_cls["name"]:
+                        st.session_state.pop(f"view_class_{c['name']}", None)
+                        st.session_state.pop(f"edit_class_{c['name']}", None)
 
             for cls in sorted_classes:
                 display_name = format_label_name(cls['name'], cls.get('label'))
-                with st.expander(f"📦 **{display_name}**"):
+                _cls_expanded = st.session_state.get(f"view_class_{cls['name']}", False) or st.session_state.get(f"edit_class_{cls['name']}", False)
+                with st.expander(f"📦 **{display_name}**", expanded=_cls_expanded):
                     st.write(f"**URI:** {cls['uri']}")
 
                     btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
@@ -386,10 +393,12 @@ def render_classes():
                         if st.button("👁️ View", key=f"btn_view_class_{cls['name']}", use_container_width=True):
                             st.session_state[f"view_class_{cls['name']}"] = not st.session_state.get(f"view_class_{cls['name']}", False)
                             st.session_state[f"edit_class_{cls['name']}"] = False
+                            st.rerun()
                     with btn_edit:
                         if st.button("✏️ Edit", key=f"btn_edit_class_{cls['name']}", use_container_width=True):
                             st.session_state[f"edit_class_{cls['name']}"] = not st.session_state.get(f"edit_class_{cls['name']}", False)
                             st.session_state[f"view_class_{cls['name']}"] = False
+                            st.rerun()
                     with btn_del:
                         if st.button("🗑️ Delete", key=f"btn_del_class_{cls['name']}", use_container_width=True):
                             st.session_state[f"confirm_delete_class_{cls['name']}"] = True
@@ -397,14 +406,17 @@ def render_classes():
 
                     # View details
                     if st.session_state.get(f"view_class_{cls['name']}", False):
-                        if cls["comment"]:
-                            st.write(f"**Comment:** {cls['comment']}")
-                        if cls["parents"]:
-                            st.write(f"**Parents:** {', '.join(cls['parents'])}")
+                        st.divider()
+                        st.write(f"**Name:** {cls['name']}")
+                        st.write(f"**Label:** {cls['label'] or '—'}")
+                        st.write(f"**Comment:** {cls['comment'] or '—'}")
+                        st.write(f"**Parent Class:** {', '.join(cls['parents']) if cls['parents'] else '—'}")
                         if cls["children"]:
                             st.write(f"**Children:** {', '.join(cls['children'])}")
-                        if not cls["comment"] and not cls["parents"] and not cls["children"]:
-                            st.caption("No additional details.")
+                        if st.button("✏️ Edit", key=f"btn_view_to_edit_class_{cls['name']}"):
+                            st.session_state[f"view_class_{cls['name']}"] = False
+                            st.session_state[f"edit_class_{cls['name']}"] = True
+                            st.rerun()
 
                     if confirm_delete(cls["name"], "class", f"class_{cls['name']}"):
                         ont.delete_class(cls["name"])
@@ -599,8 +611,16 @@ def render_properties():
 
             st.caption(f"Showing {len(filtered_obj_props)} of {len(object_props)} properties")
 
+            _active_op = next((p for p in filtered_obj_props if st.session_state.get(f"view_objprop_{p['name']}", False) or st.session_state.get(f"edit_objprop_{p['name']}", False)), None)
+            if _active_op:
+                for p in filtered_obj_props:
+                    if p["name"] != _active_op["name"]:
+                        st.session_state.pop(f"view_objprop_{p['name']}", None)
+                        st.session_state.pop(f"edit_objprop_{p['name']}", None)
+
             for prop in filtered_obj_props:
-                with st.expander(f"🔗 **{prop['name']}** ({prop['domain'] or '?'} → {prop['range'] or '?'})"):
+                _op_expanded = st.session_state.get(f"view_objprop_{prop['name']}", False) or st.session_state.get(f"edit_objprop_{prop['name']}", False)
+                with st.expander(f"🔗 **{prop['name']}** ({prop['domain'] or '?'} → {prop['range'] or '?'})", expanded=_op_expanded):
                     st.write(f"**URI:** {prop['uri']}")
 
                     btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
@@ -608,10 +628,12 @@ def render_properties():
                         if st.button("👁️ View", key=f"btn_view_objprop_{prop['name']}", use_container_width=True):
                             st.session_state[f"view_objprop_{prop['name']}"] = not st.session_state.get(f"view_objprop_{prop['name']}", False)
                             st.session_state[f"edit_objprop_{prop['name']}"] = False
+                            st.rerun()
                     with btn_edit:
                         if st.button("✏️ Edit", key=f"btn_edit_objprop_{prop['name']}", use_container_width=True):
                             st.session_state[f"edit_objprop_{prop['name']}"] = not st.session_state.get(f"edit_objprop_{prop['name']}", False)
                             st.session_state[f"view_objprop_{prop['name']}"] = False
+                            st.rerun()
                     with btn_del:
                         if st.button("🗑️ Delete", key=f"btn_del_objprop_{prop['name']}", use_container_width=True):
                             st.session_state[f"confirm_delete_objprop_{prop['name']}"] = True
@@ -619,16 +641,18 @@ def render_properties():
 
                     # View details
                     if st.session_state.get(f"view_objprop_{prop['name']}", False):
-                        if prop["label"]:
-                            st.write(f"**Label:** {prop['label']}")
-                        if prop["comment"]:
-                            st.write(f"**Comment:** {prop['comment']}")
-                        st.write(f"**Domain:** {prop['domain'] or 'Not specified'}")
-                        st.write(f"**Range:** {prop['range'] or 'Not specified'}")
-                        if prop["characteristics"]:
-                            st.write(f"**Characteristics:** {', '.join(prop['characteristics'])}")
-                        if prop.get("inverse_of"):
-                            st.write(f"**Inverse of:** {prop['inverse_of']}")
+                        st.divider()
+                        st.write(f"**Name:** {prop['name']}")
+                        st.write(f"**Label:** {prop['label'] or '—'}")
+                        st.write(f"**Comment:** {prop['comment'] or '—'}")
+                        st.write(f"**Domain:** {prop['domain'] or '—'}")
+                        st.write(f"**Range:** {prop['range'] or '—'}")
+                        st.write(f"**Characteristics:** {', '.join(prop['characteristics']) if prop['characteristics'] else '—'}")
+                        st.write(f"**Inverse of:** {prop.get('inverse_of') or '—'}")
+                        if st.button("✏️ Edit", key=f"btn_view_to_edit_objprop_{prop['name']}"):
+                            st.session_state[f"view_objprop_{prop['name']}"] = False
+                            st.session_state[f"edit_objprop_{prop['name']}"] = True
+                            st.rerun()
 
                     if confirm_delete(prop["name"], "property", f"objprop_{prop['name']}"):
                         ont.delete_property(prop["name"])
@@ -698,8 +722,16 @@ def render_properties():
 
             datatypes = list(get_ontology_manager_class().XSD_DATATYPES.keys())
 
+            _active_dp = next((p for p in filtered_data_props if st.session_state.get(f"view_dataprop_{p['name']}", False) or st.session_state.get(f"edit_dataprop_{p['name']}", False)), None)
+            if _active_dp:
+                for p in filtered_data_props:
+                    if p["name"] != _active_dp["name"]:
+                        st.session_state.pop(f"view_dataprop_{p['name']}", None)
+                        st.session_state.pop(f"edit_dataprop_{p['name']}", None)
+
             for prop in filtered_data_props:
-                with st.expander(f"📝 **{prop['name']}** ({prop['domain'] or '?'} → {prop['range']})"):
+                _dp_expanded = st.session_state.get(f"view_dataprop_{prop['name']}", False) or st.session_state.get(f"edit_dataprop_{prop['name']}", False)
+                with st.expander(f"📝 **{prop['name']}** ({prop['domain'] or '?'} → {prop['range']})", expanded=_dp_expanded):
                     st.write(f"**URI:** {prop['uri']}")
 
                     btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
@@ -707,10 +739,12 @@ def render_properties():
                         if st.button("👁️ View", key=f"btn_view_dataprop_{prop['name']}", use_container_width=True):
                             st.session_state[f"view_dataprop_{prop['name']}"] = not st.session_state.get(f"view_dataprop_{prop['name']}", False)
                             st.session_state[f"edit_dataprop_{prop['name']}"] = False
+                            st.rerun()
                     with btn_edit:
                         if st.button("✏️ Edit", key=f"btn_edit_dataprop_{prop['name']}", use_container_width=True):
                             st.session_state[f"edit_dataprop_{prop['name']}"] = not st.session_state.get(f"edit_dataprop_{prop['name']}", False)
                             st.session_state[f"view_dataprop_{prop['name']}"] = False
+                            st.rerun()
                     with btn_del:
                         if st.button("🗑️ Delete", key=f"btn_del_dataprop_{prop['name']}", use_container_width=True):
                             st.session_state[f"confirm_delete_dataprop_{prop['name']}"] = True
@@ -718,13 +752,17 @@ def render_properties():
 
                     # View details
                     if st.session_state.get(f"view_dataprop_{prop['name']}", False):
-                        if prop["label"]:
-                            st.write(f"**Label:** {prop['label']}")
-                        if prop["comment"]:
-                            st.write(f"**Comment:** {prop['comment']}")
-                        st.write(f"**Domain:** {prop['domain'] or 'Not specified'}")
+                        st.divider()
+                        st.write(f"**Name:** {prop['name']}")
+                        st.write(f"**Label:** {prop['label'] or '—'}")
+                        st.write(f"**Comment:** {prop['comment'] or '—'}")
+                        st.write(f"**Domain:** {prop['domain'] or '—'}")
                         st.write(f"**Range (Datatype):** {prop['range']}")
                         st.write(f"**Functional:** {'Yes' if prop['functional'] else 'No'}")
+                        if st.button("✏️ Edit", key=f"btn_view_to_edit_dataprop_{prop['name']}"):
+                            st.session_state[f"view_dataprop_{prop['name']}"] = False
+                            st.session_state[f"edit_dataprop_{prop['name']}"] = True
+                            st.rerun()
 
                     if confirm_delete(prop["name"], "property", f"dataprop_{prop['name']}"):
                         ont.delete_property(prop["name"])
@@ -886,9 +924,17 @@ def render_individuals():
         if not individuals:
             st.info("No individuals defined yet.")
         else:
+            _active_ind = next((i for i in individuals if st.session_state.get(f"view_ind_{i['name']}", False) or st.session_state.get(f"edit_ind_{i['name']}", False)), None)
+            if _active_ind:
+                for i in individuals:
+                    if i["name"] != _active_ind["name"]:
+                        st.session_state.pop(f"view_ind_{i['name']}", None)
+                        st.session_state.pop(f"edit_ind_{i['name']}", None)
+
             for ind in individuals:
                 classes_str = ", ".join(ind["classes"]) if ind["classes"] else "No class"
-                with st.expander(f"👤 **{ind['name']}** ({classes_str})"):
+                _ind_expanded = st.session_state.get(f"view_ind_{ind['name']}", False) or st.session_state.get(f"edit_ind_{ind['name']}", False)
+                with st.expander(f"👤 **{ind['name']}** ({classes_str})", expanded=_ind_expanded):
                     st.write(f"**URI:** {ind['uri']}")
 
                     btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
@@ -896,10 +942,12 @@ def render_individuals():
                         if st.button("👁️ View", key=f"btn_view_ind_{ind['name']}", use_container_width=True):
                             st.session_state[f"view_ind_{ind['name']}"] = not st.session_state.get(f"view_ind_{ind['name']}", False)
                             st.session_state[f"edit_ind_{ind['name']}"] = False
+                            st.rerun()
                     with btn_edit:
                         if st.button("✏️ Edit", key=f"btn_edit_ind_{ind['name']}", use_container_width=True):
                             st.session_state[f"edit_ind_{ind['name']}"] = not st.session_state.get(f"edit_ind_{ind['name']}", False)
                             st.session_state[f"view_ind_{ind['name']}"] = False
+                            st.rerun()
                     with btn_del:
                         if st.button("🗑️ Delete", key=f"btn_del_ind_{ind['name']}", use_container_width=True):
                             st.session_state[f"confirm_delete_ind_{ind['name']}"] = True
@@ -907,15 +955,21 @@ def render_individuals():
 
                     # View details
                     if st.session_state.get(f"view_ind_{ind['name']}", False):
-                        if ind["label"]:
-                            st.write(f"**Label:** {ind['label']}")
-                        if ind["comment"]:
-                            st.write(f"**Comment:** {ind['comment']}")
-                        st.write(f"**Classes:** {', '.join(ind['classes']) or 'None'}")
+                        st.divider()
+                        st.write(f"**Name:** {ind['name']}")
+                        st.write(f"**Label:** {ind['label'] or '—'}")
+                        st.write(f"**Comment:** {ind['comment'] or '—'}")
+                        st.write(f"**Classes:** {', '.join(ind['classes']) if ind['classes'] else '—'}")
                         if ind["properties"]:
                             st.write("**Property Values:**")
                             for prop in ind["properties"]:
                                 st.write(f"  - {prop['property']}: {prop['value']}")
+                        else:
+                            st.write("**Property Values:** —")
+                        if st.button("✏️ Edit", key=f"btn_view_to_edit_ind_{ind['name']}"):
+                            st.session_state[f"view_ind_{ind['name']}"] = False
+                            st.session_state[f"edit_ind_{ind['name']}"] = True
+                            st.rerun()
 
                     if confirm_delete(ind["name"], "individual", f"ind_{ind['name']}"):
                         ont.delete_individual(ind["name"])
@@ -1974,22 +2028,16 @@ def render_visualization():
 
         # Store graph settings in session state for caching
         selected_classes_key = "_".join(sorted(selected_classes)) if selected_classes else "none"
-        graph_key = f"{show_classes}_{show_properties}_{show_data_props}_{show_annotations}_{show_individuals}_{height}_{node_spacing}_{highlight_issues}_{hash(selected_classes_key)}"
+        _graph_ver = 11  # Bump to invalidate cached graph data after code changes
+        graph_key = f"v{_graph_ver}_{show_classes}_{show_properties}_{show_data_props}_{show_annotations}_{show_individuals}_{height}_{node_spacing}_{highlight_issues}_{hash(selected_classes_key)}"
         if "last_graph_key" not in st.session_state:
             st.session_state.last_graph_key = None
-            st.session_state.last_graph_html = None
+            st.session_state.last_graph_data = None
 
-        # Auto-render when settings change or button clicked
-        has_cache = st.session_state.last_graph_html is not None
-        settings_changed = st.session_state.last_graph_key != graph_key
-        should_render = render_graph or settings_changed or not has_cache
+        # Rebuild graph data when settings change or button clicked
+        needs_rebuild = st.session_state.last_graph_key != graph_key or render_graph or st.session_state.last_graph_data is None
 
-        if has_cache and not should_render:
-            # Show cached version only if nothing changed
-            st.components.v1.html(st.session_state.last_graph_html, height=height + 50, scrolling=True)
-            st.caption("🟢 Classes • 🔵 Obj Props (edges) • 🟣 Data Props • 🟠 Individuals • 🟤 Annotations • 🔴 Validation issues | Drag nodes • Scroll to zoom • Click for details")
-
-        if should_render:
+        if needs_rebuild:
             # Build the graph
             from pyvis.network import Network
             import tempfile
@@ -1998,7 +2046,7 @@ def render_visualization():
             status = st.empty()
             status.info("Building graph...")
 
-            net = Network(height=f"{height}px", width="100%", bgcolor="#ffffff",
+            net = Network(height=f"{height - 32}px", width="100%", bgcolor="#ffffff",
                          font_color="#f0f0f0", directed=True)
 
             # Fast layout - disable stabilization completely to avoid hanging
@@ -2069,7 +2117,8 @@ def render_visualization():
                         title += "\n⚠ Has validation issues"
                     net.add_node(cls["name"], label=label, title=title,
                                color=node_color, borderWidth=border_width,
-                               shape="box", size=25)
+                               shape="box", size=25,
+                               ntype="Class", ename=cls["name"])
                     node_count += 1
 
                 # Add class hierarchy edges (only if parent node exists in graph)
@@ -2092,7 +2141,8 @@ def render_visualization():
                         net.add_edge(prop["domain"], prop["range"],
                                    label=label,
                                    title=title,
-                                   color="#2196F3", arrows="to")
+                                   color="#2196F3", arrows="to",
+                                   ntype="Object Property", ename=prop["name"])
 
             # Add data properties (only those connected to displayed classes)
             if show_data_props and data_props and show_classes and node_count < max_nodes:
@@ -2115,7 +2165,8 @@ def render_visualization():
 
                     net.add_node(f"dprop_{prop['name']}", label=label, title=title,
                                color={"background": "#9C27B0", "border": "#7B1FA2"},
-                               shape="ellipse", size=12, font={"color": "#f0f0f0"})
+                               shape="ellipse", size=12, font={"color": "#f0f0f0"},
+                               ntype="Data Property", ename=prop["name"])
                     node_count += 1
 
                     # Connect to domain class
@@ -2157,7 +2208,8 @@ def render_visualization():
                         title += "\n⚠ Has validation issues"
                     net.add_node(f"ind_{ind['name']}", label=label, title=title,
                                color=ind_color, borderWidth=border_width,
-                               shape="dot", size=20)
+                               shape="dot", size=20,
+                               ntype="Individual", ename=ind["name"])
                     node_count += 1
 
                     # Connect to classes
@@ -2245,79 +2297,111 @@ def render_visualization():
                         except Exception:
                             pass  # Skip problematic annotations
 
-            # Generate and display the graph
+            # Generate and display the graph using custom component
             try:
-                # Save to temp file
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp:
-                    net.save_graph(tmp.name)
-                    with open(tmp.name, "r", encoding="utf-8") as f:
-                        html_content = f.read()
-                    os.unlink(tmp.name)
+                import json as _json
 
-                # Inject CSS to hide progress bar and script to stop physics
-                inject_code = """
-                <style>
-                #loadingBar { display: none !important; }
-                .vis-network .vis-manipulation { display: none !important; }
-                </style>
-                <script>
-                // Hide progress bar immediately
-                document.addEventListener('DOMContentLoaded', function() {
-                    var loadingBar = document.getElementById('loadingBar');
-                    if (loadingBar) loadingBar.style.display = 'none';
-                });
-                // Stop physics after 1 second
-                setTimeout(function() {
-                    if (typeof network !== 'undefined') {
-                        network.setOptions({ physics: { enabled: false } });
-                    }
-                }, 1000);
-                // Click-to-navigate: show selected node/edge info
-                (function setupClickHandler() {
-                    if (typeof network === 'undefined') {
-                        setTimeout(setupClickHandler, 200);
-                        return;
-                    }
-                    var infoDiv = document.createElement('div');
-                    infoDiv.id = 'selectedNodeInfo';
-                    infoDiv.style.cssText = 'padding:10px;background:#1e1e1e;color:#fff;font-size:13px;border-top:1px solid #333;min-height:24px;';
-                    infoDiv.innerHTML = 'Click a node or edge to see details';
-                    document.body.appendChild(infoDiv);
-                    network.on('click', function(params) {
-                        if (params.nodes.length > 0) {
-                            var nodeId = params.nodes[0];
-                            var nodeData = network.body.data.nodes.get(nodeId);
-                            var title = (nodeData.title || '').replace(/\\n/g, '<br>');
-                            infoDiv.innerHTML = '<b>Selected:</b> ' + nodeId + (title ? '<br>' + title : '');
-                        } else if (params.edges.length > 0) {
-                            var edgeId = params.edges[0];
-                            var edgeData = network.body.data.edges.get(edgeId);
-                            var label = edgeData.label || edgeId;
-                            var title = (edgeData.title || '').replace(/\\n/g, '<br>');
-                            infoDiv.innerHTML = '<b>Edge:</b> ' + label + (title ? '<br>' + title : '');
-                        } else {
-                            infoDiv.innerHTML = 'Click a node or edge to see details';
-                        }
-                    });
-                })();
-                </script>
-                </body>
-                """
-                html_content = html_content.replace("</body>", inject_code)
+                nodes_json = _json.dumps(net.nodes)
+                edges_json = _json.dumps(net.edges)
+                options_json = _json.dumps(net.options)
 
-                # Cache the HTML for reuse
+                # Cache graph data for reuse on rerun
                 st.session_state.last_graph_key = graph_key
-                st.session_state.last_graph_html = html_content
-
-                # Display in Streamlit
+                st.session_state.last_graph_data = {
+                    "nodes": nodes_json,
+                    "edges": edges_json,
+                    "options": options_json,
+                }
                 status.empty()
-                st.components.v1.html(html_content, height=height + 50, scrolling=True)
 
             except Exception as e:
                 status.empty()
-                st.error(f"Error rendering graph: {str(e)}")
+                st.error(f"Error building graph: {str(e)}")
 
-            st.caption("🟢 Classes • 🔵 Obj Props (edges) • 🟣 Data Props • 🟠 Individuals • 🟤 Annotations • 🔴 Validation issues | Drag nodes • Scroll to zoom • Click for details")
+        # Always display the graph component (even on rerun after selection)
+        gdata = st.session_state.get("last_graph_data")
+        if gdata:
+            import os as _os
+            _component_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "lib", "graph_viewer")
+            _graph_component = st.components.v1.declare_component("graph_viewer", path=_component_path)
+
+            selection = _graph_component(
+                nodes=gdata["nodes"], edges=gdata["edges"], options=gdata["options"],
+                height=height - 80, key="graph_viewer", default=None
+            )
+
+            # Status bar outside iframe — dark styled
+            _type_to_page = {"Class": "Classes", "Object Property": "Properties",
+                             "Data Property": "Properties", "Individual": "Individuals"}
+            _view_key_map = {
+                "Class": lambda n: f"view_class_{n}",
+                "Object Property": lambda n: f"view_objprop_{n}",
+                "Data Property": lambda n: f"view_dataprop_{n}",
+                "Individual": lambda n: f"view_ind_{n}",
+            }
+
+            # Status bar with View button
+            has_selection = selection and isinstance(selection, dict) and selection.get("selected")
+            ntype = selection.get("ntype") if has_selection else None
+            ename = selection.get("ename") if has_selection else None
+            show_view = has_selection and ntype and ename and ntype in _type_to_page
+
+            if has_selection:
+                title_text = (selection.get("title") or "").replace("\n", " | ")
+                prefix = "Edge: " if selection.get("isEdge") else ""
+                sel_html = f"<b>{prefix}{selection.get('label', '')}</b> — {title_text}"
+            else:
+                sel_html = "Click a node or edge to see details"
+
+            # Inject CSS to remove gap between status bar columns
+            st.markdown("""<style>
+            div[data-testid="stHorizontalBlock"]:has(#graph-status-bar) { gap: 0 !important; }
+            div[data-testid="stHorizontalBlock"]:has(#graph-status-bar) [data-testid="stBaseButton-secondary"] button,
+            div[data-testid="stHorizontalBlock"]:has(#graph-status-bar) button[kind] ,
+            div[data-testid="stHorizontalBlock"]:has(#graph-status-bar) button {
+                background: #4CAF50 !important; color: white !important;
+                border: none !important; border-radius: 0 4px 4px 0 !important;
+                height: 36px !important; min-height: 36px !important; max-height: 36px !important;
+                padding: 0 16px !important; line-height: 36px !important;
+                margin: 0 !important;
+            }
+            div[data-testid="stHorizontalBlock"]:has(#graph-status-bar) [data-testid="stVerticalBlockBorderWrapper"] {
+                height: 36px !important; overflow: hidden;
+            }
+            div[data-testid="stHorizontalBlock"]:has(#graph-status-bar) button:hover {
+                background: #388E3C !important;
+            }
+            </style>""", unsafe_allow_html=True)
+
+            if show_view:
+                col_info, col_btn = st.columns([20, 1])
+                with col_info:
+                    st.markdown(
+                        f'<div id="graph-status-bar" style="background:#1e1e1e;color:#fff;padding:6px 12px;'
+                        f'border-radius:4px 0 0 4px;font-size:14px;display:flex;align-items:center;gap:8px;'
+                        f'height:36px;">'
+                        f'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{sel_html}</span>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+                with col_btn:
+                    if st.button("View", key="graph_view_btn", use_container_width=True):
+                        page = _type_to_page[ntype]
+                        vk = _view_key_map[ntype](ename)
+                        st.session_state.search_navigate_to = page
+                        st.session_state[vk] = True
+                        st.rerun()
+            else:
+                st.markdown(
+                    f'<div id="graph-status-bar" style="background:#1e1e1e;color:#fff;padding:6px 12px;'
+                    f'border-radius:4px;font-size:14px;display:flex;align-items:center;gap:8px;'
+                    f'height:36px;">'
+                    f'<span style="opacity:0.5;font-size:11px;white-space:nowrap;">'
+                    f'\U0001f7e2 Classes \U0001f535 Obj Props \U0001f7e3 Data Props \U0001f7e0 Individuals \U0001f7e4 Annotations</span>'
+                    f'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{sel_html}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
 
     with tab2:
         st.subheader("Class Hierarchy (Text)")
@@ -2398,6 +2482,27 @@ def main():
         "Visualization": render_visualization
     }
 
+    # Handle graph view navigation (from visualization click)
+    _qp = st.query_params
+    if "graph_view_type" in _qp and "graph_view_name" in _qp:
+        _gv_type = _qp["graph_view_type"]
+        _gv_name = _qp["graph_view_name"]
+        _type_to_page = {"Class": "Classes", "Object Property": "Properties", "Data Property": "Properties", "Individual": "Individuals"}
+        _view_key_map = {
+            "Class": f"view_class_{_gv_name}",
+            "Object Property": f"view_objprop_{_gv_name}",
+            "Data Property": f"view_dataprop_{_gv_name}",
+            "Individual": f"view_ind_{_gv_name}",
+        }
+        _nav_page = _type_to_page.get(_gv_type)
+        if _nav_page:
+            st.session_state.search_navigate_to = _nav_page
+            _vk = _view_key_map.get(_gv_type)
+            if _vk:
+                st.session_state[_vk] = True
+        st.query_params.clear()
+        st.rerun()
+
     # Handle search navigation
     nav_override = st.session_state.pop("search_navigate_to", None)
     default_idx = list(pages.keys()).index(nav_override) if nav_override and nav_override in pages else 0
@@ -2443,7 +2548,16 @@ def main():
                     if st.sidebar.button(f"{r['name']}{label_str}", key=f"search_{type_label}_{r['name']}",
                                          use_container_width=True):
                         st.session_state.search_navigate_to = page
-                        st.session_state.search_selected_resource = r["name"]
+                        # Set the view pane open for the selected resource
+                        view_key_map = {
+                            "Class": f"view_class_{r['name']}",
+                            "Object Property": f"view_objprop_{r['name']}",
+                            "Data Property": f"view_dataprop_{r['name']}",
+                            "Individual": f"view_ind_{r['name']}",
+                        }
+                        view_key = view_key_map.get(type_label)
+                        if view_key:
+                            st.session_state[view_key] = True
                         st.rerun()
         else:
             st.sidebar.caption("No results found.")
