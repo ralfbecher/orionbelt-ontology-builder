@@ -300,7 +300,7 @@ def render_dashboard():
             prefix_data["Prefix"].append(p["prefix"])
             prefix_data["Namespace"].append(p["namespace"])
             prefix_data["Source"].append(p["source"])
-        st.dataframe(prefix_data, use_container_width=True, hide_index=True)
+        st.dataframe(prefix_data, width="stretch", hide_index=True)
     else:
         st.info("No prefixes defined.")
 
@@ -1738,7 +1738,7 @@ def render_import_export():
                         "Current Value": [", ".join(c["current_values"]) for c in conflicts],
                         "Incoming Value": [c["incoming_value"] for c in conflicts],
                     }
-                    st.dataframe(conflict_data, use_container_width=True, hide_index=True)
+                    st.dataframe(conflict_data, width="stretch", hide_index=True)
 
             # Prefix conflicts
             prefix_conflicts = preview.get("prefix_conflicts", [])
@@ -1749,7 +1749,7 @@ def render_import_export():
                         "Current Namespace": [c["current_namespace"] for c in prefix_conflicts],
                         "Incoming Namespace": [c["incoming_namespace"] for c in prefix_conflicts],
                     }
-                    st.dataframe(pfx_data, use_container_width=True, hide_index=True)
+                    st.dataframe(pfx_data, width="stretch", hide_index=True)
 
             # Change report download
             report = ont.format_diff_report(diff, report_format="markdown")
