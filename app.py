@@ -2686,8 +2686,9 @@ def main():
 
     # Handle search navigation
     nav_override = st.session_state.pop("search_navigate_to", None)
-    default_idx = list(pages.keys()).index(nav_override) if nav_override and nav_override in pages else 0
-    selection = st.sidebar.radio("Navigation", list(pages.keys()), index=default_idx)
+    if nav_override and nav_override in pages:
+        st.session_state["nav_radio"] = nav_override
+    selection = st.sidebar.radio("Navigation", list(pages.keys()), key="nav_radio")
 
     # Undo / Redo controls
     um = st.session_state.undo_manager
