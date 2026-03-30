@@ -6,6 +6,8 @@ and managing OWL ontologies.
 import streamlit as st
 import json
 
+APP_VERSION = "0.8.0"
+
 # Page configuration
 st.set_page_config(
     page_title="OrionBelt Ontology Builder",
@@ -2355,8 +2357,10 @@ def main():
     init_session_state()
 
     # Sidebar navigation
-    st.sidebar.title("🌐 OrionBelt")
-    st.sidebar.caption("Ontology Builder")
+    st.sidebar.image("docs/assets/ORIONBELT Logo.png", width=200)
+    st.sidebar.markdown("# Ontology Builder")
+    st.sidebar.markdown("[ralforion.com](https://ralforion.com)")
+    st.sidebar.caption(f"v{APP_VERSION}")
 
     st.sidebar.divider()
 

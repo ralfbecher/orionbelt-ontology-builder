@@ -1,8 +1,21 @@
-# Orionbelt Ontology Builder
+<p align="center">
+  <img src="docs/assets/ORIONBELT Logo.png" alt="OrionBelt Logo" width="400">
+</p>
 
-A Python-based web application for building, editing, maintaining, importing, and exporting OWL ontologies using the Turtle (TTL) format.
+<h1 align="center">OrionBelt Ontology Builder</h1>
 
-**Try it now:** The application is publicly available at [orionbelt.streamlit.app](https://orionbelt.streamlit.app/)
+<p align="center"><strong>Build, edit, and manage OWL ontologies visually with a Streamlit web application</strong></p>
+
+[![GitHub stars](https://img.shields.io/github/stars/ralfbecher/orionbelt-ontology-builder?style=social)](https://github.com/ralfbecher/orionbelt-ontology-builder)
+[![Version 0.8.0](https://img.shields.io/badge/version-0.8.0-purple.svg)](https://github.com/ralfbecher/orionbelt-ontology-builder/releases)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: BSL 1.1](https://img.shields.io/badge/License-BSL_1.1-orange.svg)](https://github.com/ralfbecher/orionbelt-ontology-builder/blob/main/LICENSE)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-FF4B4B.svg?logo=streamlit&logoColor=white)](https://streamlit.io)
+[![rdflib](https://img.shields.io/badge/rdflib-7.0+-2E86C1.svg)](https://rdflib.readthedocs.io)
+[![OWL-RL](https://img.shields.io/badge/OWL--RL-reasoning-green.svg)](https://owl-rl.readthedocs.io)
+[![vis-network](https://img.shields.io/badge/vis--network-9.1-97C2FC.svg)](https://visjs.github.io/vis-network/docs/network/)
+
+**Try it now:** [orionbelt.streamlit.app](https://orionbelt.streamlit.app/)
 
 ## Features
 
@@ -12,6 +25,9 @@ A Python-based web application for building, editing, maintaining, importing, an
 - **Import/Export** - Support for Turtle (.ttl), RDF/XML (.owl), N-Triples (.nt), N3 (.n3), and JSON-LD formats
 - **Validation** - Check for missing labels, domains, ranges, and other issues
 - **Reasoning** - Apply RDFS and OWL-RL reasoning to infer new triples
+- **Undo/Redo** - Full undo/redo history for all ontology modifications
+- **Global Search** - Search across all ontology elements
+- **Graph Visualization** - Interactive vis-network graph with class filtering and layout options
 
 ### Ontology Elements
 
@@ -25,33 +41,23 @@ A Python-based web application for building, editing, maintaining, importing, an
 | **Annotations**       | RDFS labels/comments, SKOS, Dublin Core metadata         |
 | **Relations**         | equivalentClass, disjointWith, sameAs, differentFrom     |
 
-## Installation
+## Quick Start
 
 ### Prerequisites
 
-- Python 3.9+
+- Python 3.10+
 
-### Setup
+### Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/ralfbecher/orionbelt-ontology-builder.git
 cd orionbelt-ontology-builder
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
 pip install -r requirements.txt
 ```
 
-## Usage
-
-### Start the Application
+### Run the Application
 
 ```bash
-source venv/bin/activate  # On Windows: venv\Scripts\activate
 streamlit run app.py
 ```
 
@@ -130,8 +136,10 @@ Open your browser at http://localhost:8501
 
 ### Visualization
 
+- Interactive graph visualization with vis-network
 - Class hierarchy tree view
 - Statistics charts
+- Class filter and configurable graph limits
 
 ## Supported Formats
 
@@ -150,13 +158,13 @@ orionbelt-ontology-builder/
 ├── app.py                 # Streamlit UI application
 ├── ontology_manager.py    # Core OWL operations using rdflib
 ├── requirements.txt       # Python dependencies
+├── pyproject.toml         # Project metadata
 ├── lib/                   # Frontend vendor libraries
 │   ├── vis-9.1.2/         # vis-network for graph visualization
 │   ├── tom-select/        # Tom Select for enhanced dropdowns
 │   └── bindings/          # JavaScript utility bindings
-├── .gitignore
-├── README.md
-└── venv/                  # Virtual environment (not in repo)
+└── docs/
+    └── assets/            # Logo assets
 ```
 
 ## Dependencies
@@ -200,14 +208,24 @@ orionbelt-ontology-builder/
 ] .
 ```
 
+## Companion Project
+
+### [OrionBelt Analytics](https://github.com/ralfbecher/orionbelt-analytics)
+
+OrionBelt Analytics is an ontology-based MCP server that analyzes relational database schemas and generates RDF/OWL ontologies with embedded SQL mappings. It connects to PostgreSQL, Snowflake, and Dremio, providing AI assistants with deep structural and semantic understanding of your data. Together with the Ontology Builder, they form a comprehensive toolkit for ontology-driven data modeling.
+
 ## License
 
-MIT License
+Copyright 2025 [RALFORION d.o.o.](https://ralforion.com)
 
-## Contributing
+Licensed under the [Business Source License 1.1](LICENSE). The Licensed Work will convert to Apache License 2.0 on 2030-03-30.
 
-Contributions are welcome! Please feel free to submit issues or pull requests.
+By contributing to this project, you agree to the [Contributor License Agreement](CLA.md).
 
 ---
 
-Orionbelt is a project by RALFORION d.o.o.
+<p align="center">
+  <a href="https://ralforion.com">
+    <img src="docs/assets/RALFORION doo Logo.png" alt="RALFORION d.o.o." width="200">
+  </a>
+</p>

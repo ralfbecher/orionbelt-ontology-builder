@@ -9,6 +9,7 @@ __pycache__/
 *.so
 .Python
 *.egg-info/
+design/
 dist/
 build/
 

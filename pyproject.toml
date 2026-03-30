@@ -1,6 +1,6 @@
 [project]
 name = "orionbelt-ontology-builder"
-version = "0.1.0"
+version = "0.8.0"
 description = "A Streamlit application for building, editing, and managing OWL ontologies"
 requires-python = ">=3.10"
 dependencies = [
