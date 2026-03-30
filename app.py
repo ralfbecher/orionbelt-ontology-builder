@@ -3283,17 +3283,12 @@ def main():
     meta = ont.get_ontology_metadata()
     ont_label = meta.get("label", "")
     ont_uri = str(ont.namespace)
-    if ont_label:
-        st.markdown(f"#### {ont_label}")
-        st.caption(ont_uri)
-    else:
-        # Derive a readable name from the URI, skip version-like segments
+    if not ont_label:
         import re
         parts = [p for p in ont_uri.rstrip("#/").split("/") if p and ":" not in p]
         name_parts = [p for p in parts if not re.match(r'^v?\d+[\d.]*$', p)]
-        base_name = name_parts[-1] if name_parts else (parts[-1] if parts else ont_uri)
-        st.markdown(f"#### {base_name}")
-        st.caption(ont_uri)
+        ont_label = name_parts[-1] if name_parts else (parts[-1] if parts else ont_uri)
+    st.caption(f"**{ont_label}** — {ont_uri}")
 
     # Render selected page
     pages[selection]()
