@@ -2260,28 +2260,34 @@ def render_visualization():
                         network.setOptions({ physics: { enabled: false } });
                     }
                 }, 1000);
-                // Click-to-navigate: show selected node info
-                document.addEventListener('DOMContentLoaded', function() {
-                    setTimeout(function() {
-                        if (typeof network !== 'undefined') {
-                            var infoDiv = document.createElement('div');
-                            infoDiv.id = 'selectedNodeInfo';
-                            infoDiv.style.cssText = 'padding:8px;background:#1e1e1e;color:#fff;font-size:13px;border-top:1px solid #333;';
-                            infoDiv.innerHTML = 'Click a node to see details';
-                            document.body.appendChild(infoDiv);
-                            network.on('click', function(params) {
-                                if (params.nodes.length > 0) {
-                                    var nodeId = params.nodes[0];
-                                    var nodeData = network.body.data.nodes.get(nodeId);
-                                    var title = nodeData.title || '';
-                                    infoDiv.innerHTML = '<b>Selected:</b> ' + nodeId + '<br>' + title.replace(/\\n/g, '<br>');
-                                } else {
-                                    infoDiv.innerHTML = 'Click a node to see details';
-                                }
-                            });
+                // Click-to-navigate: show selected node/edge info
+                (function setupClickHandler() {
+                    if (typeof network === 'undefined') {
+                        setTimeout(setupClickHandler, 200);
+                        return;
+                    }
+                    var infoDiv = document.createElement('div');
+                    infoDiv.id = 'selectedNodeInfo';
+                    infoDiv.style.cssText = 'padding:10px;background:#1e1e1e;color:#fff;font-size:13px;border-top:1px solid #333;min-height:24px;';
+                    infoDiv.innerHTML = 'Click a node or edge to see details';
+                    document.body.appendChild(infoDiv);
+                    network.on('click', function(params) {
+                        if (params.nodes.length > 0) {
+                            var nodeId = params.nodes[0];
+                            var nodeData = network.body.data.nodes.get(nodeId);
+                            var title = (nodeData.title || '').replace(/\\n/g, '<br>');
+                            infoDiv.innerHTML = '<b>Selected:</b> ' + nodeId + (title ? '<br>' + title : '');
+                        } else if (params.edges.length > 0) {
+                            var edgeId = params.edges[0];
+                            var edgeData = network.body.data.edges.get(edgeId);
+                            var label = edgeData.label || edgeId;
+                            var title = (edgeData.title || '').replace(/\\n/g, '<br>');
+                            infoDiv.innerHTML = '<b>Edge:</b> ' + label + (title ? '<br>' + title : '');
+                        } else {
+                            infoDiv.innerHTML = 'Click a node or edge to see details';
                         }
-                    }, 500);
-                });
+                    });
+                })();
                 </script>
                 </body>
                 """
@@ -2363,10 +2369,23 @@ def main():
     # Sidebar navigation
     st.sidebar.image("docs/assets/ORIONBELT Logo.png", width=200)
     st.sidebar.markdown("# Ontology Builder")
-    st.sidebar.markdown("[ralforion.com](https://ralforion.com)")
+    st.sidebar.markdown("\u00a9 2025 [RALFORION d.o.o.](https://ralforion.com)")
     st.sidebar.caption(f"v{APP_VERSION}")
 
-    st.sidebar.divider()
+    # Undo / Redo controls
+    um = st.session_state.undo_manager
+    if um:
+        undo_col, redo_col = st.sidebar.columns(2)
+        with undo_col:
+            if st.button("Undo", disabled=not um.can_undo(), use_container_width=True, key="btn_undo"):
+                label = um.undo()
+                set_flash_message(f"Undid: {label}", "info")
+                st.rerun()
+        with redo_col:
+            if st.button("Redo", disabled=not um.can_redo(), use_container_width=True, key="btn_redo"):
+                label = um.redo()
+                set_flash_message(f"Redid: {label}", "info")
+                st.rerun()
 
     pages = {
         "Dashboard": render_dashboard,
@@ -2382,36 +2401,40 @@ def main():
         "Visualization": render_visualization
     }
 
-    selection = st.sidebar.radio("Navigation", list(pages.keys()))
+    # Handle search navigation
+    nav_override = st.session_state.pop("search_navigate_to", None)
+    default_idx = list(pages.keys()).index(nav_override) if nav_override and nav_override in pages else 0
+    selection = st.sidebar.radio("Navigation", list(pages.keys()), index=default_idx)
 
     st.sidebar.divider()
 
     # Global search
+    type_to_page = {
+        "Class": "Classes",
+        "Object Property": "Properties",
+        "Data Property": "Properties",
+        "Individual": "Individuals",
+    }
     search_query = st.sidebar.text_input("Search", placeholder="Search resources...", key="global_search")
     if search_query:
         results = st.session_state.ontology.search(search_query)
         if results:
-            for r in results[:10]:
-                label_str = f" ({r['label']})" if r["label"] and r["label"] != r["name"] else ""
-                st.sidebar.markdown(f"**{r['type']}:** {r['name']}{label_str}")
+            # Group by type
+            grouped: dict[str, list] = {}
+            for r in results[:20]:
+                grouped.setdefault(r["type"], []).append(r)
+            for type_label, items in grouped.items():
+                st.sidebar.caption(type_label)
+                page = type_to_page.get(type_label, "Dashboard")
+                for r in items:
+                    label_str = f" ({r['label']})" if r["label"] and r["label"] != r["name"] else ""
+                    if st.sidebar.button(f"{r['name']}{label_str}", key=f"search_{type_label}_{r['name']}",
+                                         use_container_width=True):
+                        st.session_state.search_navigate_to = page
+                        st.session_state.search_selected_resource = r["name"]
+                        st.rerun()
         else:
             st.sidebar.caption("No results found.")
-
-    st.sidebar.divider()
-
-    # Undo / Redo controls
-    um = st.session_state.undo_manager
-    undo_col, redo_col = st.sidebar.columns(2)
-    with undo_col:
-        if st.button("Undo", disabled=not um.can_undo(), use_container_width=True, key="btn_undo"):
-            label = um.undo()
-            set_flash_message(f"Undid: {label}", "info")
-            st.rerun()
-    with redo_col:
-        if st.button("Redo", disabled=not um.can_redo(), use_container_width=True, key="btn_redo"):
-            label = um.redo()
-            set_flash_message(f"Redid: {label}", "info")
-            st.rerun()
 
     st.sidebar.divider()
 
