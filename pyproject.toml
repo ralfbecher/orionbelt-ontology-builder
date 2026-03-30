@@ -1,6 +1,6 @@
 [project]
 name = "orionbelt-ontology-builder"
-version = "0.9.0"
+version = "1.0.0"
 description = "A Streamlit application for building, editing, and managing OWL ontologies"
 readme = "README.md"
 license = {text = "BSL-1.1"}
@@ -49,7 +49,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["app", "ontology_manager"]
+py-modules = ["app", "ontology_manager", "templates"]
 
 [tool.setuptools.package-data]
 "*" = [

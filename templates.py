@@ -1,0 +1,331 @@
+"""Built-in ontology templates for bootstrapping new ontologies."""
+
+TEMPLATES = [
+    {
+        "name": "Organization",
+        "description": "Organization structure with departments, persons, and roles. Includes properties for organizational relationships.",
+        "turtle": """@prefix : <{base_uri}> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+:Organization a owl:Class ;
+    rdfs:label "Organization" .
+
+:Department a owl:Class ;
+    rdfs:label "Department" ;
+    rdfs:subClassOf :Organization .
+
+:Person a owl:Class ;
+    rdfs:label "Person" .
+
+:Role a owl:Class ;
+    rdfs:label "Role" .
+
+:worksFor a owl:ObjectProperty ;
+    rdfs:label "works for" ;
+    rdfs:domain :Person ;
+    rdfs:range :Organization .
+
+:hasDepartment a owl:ObjectProperty ;
+    rdfs:label "has department" ;
+    rdfs:domain :Organization ;
+    rdfs:range :Department .
+
+:hasRole a owl:ObjectProperty ;
+    rdfs:label "has role" ;
+    rdfs:domain :Person ;
+    rdfs:range :Role .
+
+:manages a owl:ObjectProperty ;
+    rdfs:label "manages" ;
+    rdfs:domain :Person ;
+    rdfs:range :Department .
+
+:hasName a owl:DatatypeProperty ;
+    rdfs:label "has name" ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string .
+
+:hasEmail a owl:DatatypeProperty ;
+    rdfs:label "has email" ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string .
+
+:foundedYear a owl:DatatypeProperty ;
+    rdfs:label "founded year" ;
+    rdfs:domain :Organization ;
+    rdfs:range xsd:integer .
+""",
+    },
+    {
+        "name": "Product Catalog",
+        "description": "Product catalog with categories, brands, and reviews. Suitable for e-commerce or inventory ontologies.",
+        "turtle": """@prefix : <{base_uri}> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+:Product a owl:Class ;
+    rdfs:label "Product" .
+
+:Category a owl:Class ;
+    rdfs:label "Category" .
+
+:Brand a owl:Class ;
+    rdfs:label "Brand" .
+
+:Review a owl:Class ;
+    rdfs:label "Review" .
+
+:belongsToCategory a owl:ObjectProperty ;
+    rdfs:label "belongs to category" ;
+    rdfs:domain :Product ;
+    rdfs:range :Category .
+
+:hasBrand a owl:ObjectProperty ;
+    rdfs:label "has brand" ;
+    rdfs:domain :Product ;
+    rdfs:range :Brand .
+
+:hasReview a owl:ObjectProperty ;
+    rdfs:label "has review" ;
+    rdfs:domain :Product ;
+    rdfs:range :Review .
+
+:hasSubCategory a owl:ObjectProperty ;
+    rdfs:label "has sub-category" ;
+    rdfs:domain :Category ;
+    rdfs:range :Category .
+
+:productName a owl:DatatypeProperty ;
+    rdfs:label "product name" ;
+    rdfs:domain :Product ;
+    rdfs:range xsd:string .
+
+:price a owl:DatatypeProperty ;
+    rdfs:label "price" ;
+    rdfs:domain :Product ;
+    rdfs:range xsd:decimal .
+
+:rating a owl:DatatypeProperty ;
+    rdfs:label "rating" ;
+    rdfs:domain :Review ;
+    rdfs:range xsd:integer .
+
+:reviewText a owl:DatatypeProperty ;
+    rdfs:label "review text" ;
+    rdfs:domain :Review ;
+    rdfs:range xsd:string .
+""",
+    },
+    {
+        "name": "Event",
+        "description": "Events with locations, participants, and organizers. Useful for conference, meetup, or calendar ontologies.",
+        "turtle": """@prefix : <{base_uri}> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+:Event a owl:Class ;
+    rdfs:label "Event" .
+
+:Location a owl:Class ;
+    rdfs:label "Location" .
+
+:Participant a owl:Class ;
+    rdfs:label "Participant" .
+
+:Organizer a owl:Class ;
+    rdfs:label "Organizer" ;
+    rdfs:subClassOf :Participant .
+
+:hasLocation a owl:ObjectProperty ;
+    rdfs:label "has location" ;
+    rdfs:domain :Event ;
+    rdfs:range :Location .
+
+:hasParticipant a owl:ObjectProperty ;
+    rdfs:label "has participant" ;
+    rdfs:domain :Event ;
+    rdfs:range :Participant .
+
+:organizedBy a owl:ObjectProperty ;
+    rdfs:label "organized by" ;
+    rdfs:domain :Event ;
+    rdfs:range :Organizer .
+
+:eventName a owl:DatatypeProperty ;
+    rdfs:label "event name" ;
+    rdfs:domain :Event ;
+    rdfs:range xsd:string .
+
+:startDate a owl:DatatypeProperty ;
+    rdfs:label "start date" ;
+    rdfs:domain :Event ;
+    rdfs:range xsd:dateTime .
+
+:endDate a owl:DatatypeProperty ;
+    rdfs:label "end date" ;
+    rdfs:domain :Event ;
+    rdfs:range xsd:dateTime .
+
+:locationName a owl:DatatypeProperty ;
+    rdfs:label "location name" ;
+    rdfs:domain :Location ;
+    rdfs:range xsd:string .
+
+:address a owl:DatatypeProperty ;
+    rdfs:label "address" ;
+    rdfs:domain :Location ;
+    rdfs:range xsd:string .
+""",
+    },
+    {
+        "name": "Person / Contact",
+        "description": "Person and contact information with addresses. Ideal for CRM or directory ontologies.",
+        "turtle": """@prefix : <{base_uri}> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+:Person a owl:Class ;
+    rdfs:label "Person" .
+
+:Address a owl:Class ;
+    rdfs:label "Address" .
+
+:ContactInfo a owl:Class ;
+    rdfs:label "Contact Info" .
+
+:hasAddress a owl:ObjectProperty ;
+    rdfs:label "has address" ;
+    rdfs:domain :Person ;
+    rdfs:range :Address .
+
+:hasContact a owl:ObjectProperty ;
+    rdfs:label "has contact" ;
+    rdfs:domain :Person ;
+    rdfs:range :ContactInfo .
+
+:knows a owl:ObjectProperty ;
+    rdfs:label "knows" ;
+    rdfs:domain :Person ;
+    rdfs:range :Person ;
+    a owl:SymmetricProperty .
+
+:firstName a owl:DatatypeProperty ;
+    rdfs:label "first name" ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string .
+
+:lastName a owl:DatatypeProperty ;
+    rdfs:label "last name" ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string .
+
+:birthDate a owl:DatatypeProperty ;
+    rdfs:label "birth date" ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:date .
+
+:email a owl:DatatypeProperty ;
+    rdfs:label "email" ;
+    rdfs:domain :ContactInfo ;
+    rdfs:range xsd:string .
+
+:phone a owl:DatatypeProperty ;
+    rdfs:label "phone" ;
+    rdfs:domain :ContactInfo ;
+    rdfs:range xsd:string .
+
+:street a owl:DatatypeProperty ;
+    rdfs:label "street" ;
+    rdfs:domain :Address ;
+    rdfs:range xsd:string .
+
+:city a owl:DatatypeProperty ;
+    rdfs:label "city" ;
+    rdfs:domain :Address ;
+    rdfs:range xsd:string .
+
+:postalCode a owl:DatatypeProperty ;
+    rdfs:label "postal code" ;
+    rdfs:domain :Address ;
+    rdfs:range xsd:string .
+
+:country a owl:DatatypeProperty ;
+    rdfs:label "country" ;
+    rdfs:domain :Address ;
+    rdfs:range xsd:string .
+""",
+    },
+    {
+        "name": "SKOS Thesaurus",
+        "description": "SKOS ConceptScheme with sample broader/narrower concepts. Starting point for controlled vocabularies and taxonomies.",
+        "turtle": """@prefix : <{base_uri}> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+:MainScheme a skos:ConceptScheme ;
+    rdfs:label "Main Scheme" .
+
+:Science a skos:Concept ;
+    skos:prefLabel "Science" ;
+    skos:inScheme :MainScheme .
+
+:NaturalScience a skos:Concept ;
+    skos:prefLabel "Natural Science" ;
+    skos:broader :Science ;
+    skos:inScheme :MainScheme .
+
+:SocialScience a skos:Concept ;
+    skos:prefLabel "Social Science" ;
+    skos:broader :Science ;
+    skos:inScheme :MainScheme .
+
+:Physics a skos:Concept ;
+    skos:prefLabel "Physics" ;
+    skos:broader :NaturalScience ;
+    skos:inScheme :MainScheme .
+
+:Biology a skos:Concept ;
+    skos:prefLabel "Biology" ;
+    skos:broader :NaturalScience ;
+    skos:inScheme :MainScheme .
+
+:Economics a skos:Concept ;
+    skos:prefLabel "Economics" ;
+    skos:broader :SocialScience ;
+    skos:inScheme :MainScheme .
+
+:Science skos:narrower :NaturalScience, :SocialScience .
+:NaturalScience skos:narrower :Physics, :Biology .
+:SocialScience skos:narrower :Economics .
+""",
+    },
+]
+
+
+def get_template_names() -> list:
+    """Return list of template names."""
+    return [t["name"] for t in TEMPLATES]
+
+
+def get_template(name: str) -> dict:
+    """Return a template by name, or None if not found."""
+    for t in TEMPLATES:
+        if t["name"] == name:
+            return t
+    return None
+
+
+def render_template(template: dict, base_uri: str) -> str:
+    """Render a template's Turtle with the given base URI."""
+    return template["turtle"].replace("{base_uri}", base_uri)

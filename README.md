@@ -7,7 +7,7 @@
 <p align="center"><strong>Build, edit, and manage OWL ontologies visually with a Streamlit web application</strong></p>
 
 [![GitHub stars](https://img.shields.io/github/stars/ralfbecher/orionbelt-ontology-builder?style=social)](https://github.com/ralfbecher/orionbelt-ontology-builder)
-[![Version 0.9.0](https://img.shields.io/badge/version-0.9.0-purple.svg)](https://github.com/ralfbecher/orionbelt-ontology-builder/releases)
+[![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-purple.svg)](https://github.com/ralfbecher/orionbelt-ontology-builder/releases)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: BSL 1.1](https://img.shields.io/badge/License-BSL_1.1-orange.svg)](https://github.com/ralfbecher/orionbelt-ontology-builder/blob/main/LICENSE)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-FF4B4B.svg?logo=streamlit&logoColor=white)](https://streamlit.io)

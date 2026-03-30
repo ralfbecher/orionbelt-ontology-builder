@@ -6,7 +6,7 @@ and managing OWL ontologies.
 import streamlit as st
 import json
 
-APP_VERSION = "0.9.0"
+APP_VERSION = "1.0.0"
 
 # Page configuration
 st.set_page_config(
@@ -397,7 +397,7 @@ def render_classes():
     classes = ont.get_classes()
     class_names = [c["name"] for c in classes]
 
-    tab1, tab2, tab3 = st.tabs(["View Classes", "Add Class", "Edit/Delete Class"])
+    tab1, tab2, tab3, tab4 = st.tabs(["View Classes", "Add Class", "Edit/Delete Class", "Bulk Add"])
 
     with tab1:
         if not classes:
@@ -606,6 +606,30 @@ def render_classes():
                     if not usages["inbound"] and not usages["outbound"]:
                         st.caption("No usages found.")
 
+    with tab4:
+        st.subheader("Bulk Add Classes")
+        st.caption("Enter one class name per line, or use CSV format: Name, Label, Parent")
+        bulk_text = st.text_area("Class entries", height=200, key="bulk_classes_text",
+                                 placeholder="Dog\nCat\nBird\n\nor CSV:\nName, Label, Parent\nDog, A Dog, Animal\nCat, A Cat, Animal")
+
+        if bulk_text:
+            entries = ont.parse_bulk_text(bulk_text)
+            if entries:
+                import pandas as pd
+                st.dataframe(pd.DataFrame(entries), width="stretch")
+                if st.button("Create All Classes", type="primary", key="bulk_create_classes"):
+                    result = ont.bulk_add_classes(entries)
+                    save_checkpoint("Bulk add classes")
+                    parts = []
+                    if result["created"]:
+                        parts.append(f"Created {len(result['created'])} class(es)")
+                    if result["skipped"]:
+                        parts.append(f"Skipped {len(result['skipped'])} existing")
+                    if result["errors"]:
+                        parts.append(f"{len(result['errors'])} error(s)")
+                    show_message(". ".join(parts), "success" if result["created"] else "warning")
+                    st.rerun()
+
 
 def render_properties():
     """Render the properties management page."""
@@ -619,9 +643,9 @@ def render_properties():
     obj_prop_names = [p["name"] for p in object_props]
     data_prop_names = [p["name"] for p in data_props]
 
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Object Properties", "Data Properties",
-        "Add Object Property", "Add Data Property"
+        "Add Object Property", "Add Data Property", "Bulk Add"
     ])
 
     with tab1:
@@ -938,6 +962,32 @@ def render_properties():
                     show_message(f"Data property '{name}' added!", "success")
                     st.rerun()
 
+    with tab5:
+        st.subheader("Bulk Add Properties")
+        prop_type = st.radio("Property Type", ["Object Property", "Data Property"],
+                             horizontal=True, key="bulk_prop_type")
+        st.caption("Enter one property per line, or CSV: Name, Domain, Range, Label")
+        bulk_text = st.text_area("Property entries", height=200, key="bulk_props_text",
+                                 placeholder="hasFriend\nhasEnemy\n\nor CSV:\nName, Domain, Range, Label\nhasFriend, Person, Person, has friend")
+        if bulk_text:
+            entries = ont.parse_bulk_text(bulk_text)
+            if entries:
+                import pandas as pd
+                st.dataframe(pd.DataFrame(entries), width="stretch")
+                ptype = "object" if prop_type == "Object Property" else "data"
+                if st.button("Create All Properties", type="primary", key="bulk_create_props"):
+                    result = ont.bulk_add_properties(entries, property_type=ptype)
+                    save_checkpoint("Bulk add properties")
+                    parts = []
+                    if result["created"]:
+                        parts.append(f"Created {len(result['created'])} propert(ies)")
+                    if result["skipped"]:
+                        parts.append(f"Skipped {len(result['skipped'])} existing")
+                    if result["errors"]:
+                        parts.append(f"{len(result['errors'])} error(s)")
+                    show_message(". ".join(parts), "success" if result["created"] else "warning")
+                    st.rerun()
+
 
 def render_individuals():
     """Render the individuals management page."""
@@ -951,7 +1001,7 @@ def render_individuals():
     object_props = ont.get_object_properties()
     data_props = ont.get_data_properties()
 
-    tab1, tab2, tab3 = st.tabs(["View Individuals", "Add Individual", "Add Property Value"])
+    tab1, tab2, tab3, tab4 = st.tabs(["View Individuals", "Add Individual", "Add Property Value", "Bulk Add"])
 
     with tab1:
         if not individuals:
@@ -1129,6 +1179,29 @@ def render_individuals():
                         save_checkpoint("Add property assertion")
                         show_message(f"Property value added to '{individual}'!", "success")
                         st.rerun()
+
+    with tab4:
+        st.subheader("Bulk Add Individuals")
+        st.caption("Enter one individual per line (Name, Class) or CSV: Name, Class, Label")
+        bulk_text = st.text_area("Individual entries", height=200, key="bulk_individuals_text",
+                                 placeholder="Name, Class, Label\nalice, Person, Alice\nbob, Person, Bob")
+        if bulk_text:
+            entries = ont.parse_bulk_text(bulk_text)
+            if entries:
+                import pandas as pd
+                st.dataframe(pd.DataFrame(entries), width="stretch")
+                if st.button("Create All Individuals", type="primary", key="bulk_create_individuals"):
+                    result = ont.bulk_add_individuals(entries)
+                    save_checkpoint("Bulk add individuals")
+                    parts = []
+                    if result["created"]:
+                        parts.append(f"Created {len(result['created'])} individual(s)")
+                    if result["skipped"]:
+                        parts.append(f"Skipped {len(result['skipped'])} existing")
+                    if result["errors"]:
+                        parts.append(f"{len(result['errors'])} error(s)")
+                    show_message(". ".join(parts), "success" if result["created"] else "warning")
+                    st.rerun()
 
 
 def render_restrictions():
@@ -1444,7 +1517,7 @@ def render_annotations():
     # Sort all resources by display text
     all_resources.sort(key=lambda r: r["display"].lower())
 
-    tab1, tab2 = st.tabs(["View Annotations", "Add Annotation"])
+    tab1, tab2, tab3 = st.tabs(["View Annotations", "Add Annotation", "Bulk Edit"])
 
     with tab1:
         if not all_resources:
@@ -1582,6 +1655,245 @@ def render_annotations():
                         show_message("Annotation added!", "success")
                         st.rerun()
 
+    with tab3:
+        st.subheader("Bulk Edit Annotations")
+        st.caption("Edit annotations in a spreadsheet. Add rows to create, mark action as 'delete' to remove.")
+
+        # Build initial data from existing annotations
+        annotation_data = []
+        for res in all_resources:
+            annots = ont.get_annotations(res["name"])
+            for a in annots:
+                annotation_data.append({
+                    "Resource": res["name"],
+                    "Predicate": a.get("predicate_label", ""),
+                    "Value": a.get("value", ""),
+                    "Language": a.get("language", ""),
+                    "Action": "keep",
+                })
+
+        import pandas as pd
+        if annotation_data:
+            df = pd.DataFrame(annotation_data)
+        else:
+            df = pd.DataFrame(columns=["Resource", "Predicate", "Value", "Language", "Action"])
+
+        edited_df = st.data_editor(
+            df,
+            num_rows="dynamic",
+            column_config={
+                "Action": st.column_config.SelectboxColumn(
+                    "Action", options=["keep", "add", "delete"], default="add",
+                ),
+            },
+            key="bulk_annotations_editor",
+            width="stretch",
+        )
+
+        if st.button("Apply Changes", type="primary", key="bulk_apply_annotations"):
+            updates = []
+            for _, row in edited_df.iterrows():
+                action = row.get("Action", "keep")
+                if action in ("add", "delete"):
+                    updates.append({
+                        "resource": row["Resource"],
+                        "predicate": row["Predicate"],
+                        "value": row["Value"],
+                        "lang": row.get("Language", ""),
+                        "action": action,
+                    })
+            if updates:
+                result = ont.bulk_update_annotations(updates)
+                save_checkpoint("Bulk edit annotations")
+                msg = f"Applied {result['applied']} change(s)"
+                if result["errors"]:
+                    msg += f", {len(result['errors'])} error(s)"
+                show_message(msg, "success" if not result["errors"] else "warning")
+                st.rerun()
+            else:
+                show_message("No changes to apply. Set Action to 'add' or 'delete'.", "info")
+
+
+def render_skos_vocabulary():
+    """Render the SKOS Vocabulary management page."""
+    st.header("SKOS Vocabulary")
+
+    ont = st.session_state.ontology
+    schemes = ont.get_concept_schemes()
+    concepts = ont.get_concepts()
+    scheme_names = [s["name"] for s in schemes]
+    concept_names = [c["name"] for c in concepts]
+
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Concept Schemes", "Concepts", "Concept Hierarchy", "SKOS Validation"
+    ])
+
+    with tab1:
+        st.subheader("Concept Schemes")
+        if not schemes:
+            st.info("No concept schemes defined yet.")
+        else:
+            for scheme in schemes:
+                display_name = format_label_name(scheme['name'], scheme.get('label'))
+                with st.expander(f"📚 **{display_name}** ({scheme['concept_count']} concepts)"):
+                    st.write(f"**URI:** {scheme['uri']}")
+                    st.write(f"**Label:** {scheme['label'] or '—'}")
+                    st.write(f"**Comment:** {scheme['comment'] or '—'}")
+                    if st.button("🗑️ Delete", key=f"del_scheme_{scheme['name']}"):
+                        st.session_state[f"confirm_delete_scheme_{scheme['name']}"] = True
+                        st.rerun()
+                    if st.session_state.get(f"confirm_delete_scheme_{scheme['name']}", False):
+                        st.warning(f"Delete scheme '{scheme['name']}' and remove all inScheme references?")
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            if st.button("Confirm Delete", key=f"confirm_del_scheme_{scheme['name']}"):
+                                ont.delete_concept_scheme(scheme['name'])
+                                save_checkpoint("Delete concept scheme")
+                                st.session_state.pop(f"confirm_delete_scheme_{scheme['name']}", None)
+                                set_flash_message(f"Scheme '{scheme['name']}' deleted!", "success")
+                                st.rerun()
+                        with c2:
+                            if st.button("Cancel", key=f"cancel_del_scheme_{scheme['name']}"):
+                                st.session_state.pop(f"confirm_delete_scheme_{scheme['name']}", None)
+                                st.rerun()
+
+        st.divider()
+        st.subheader("Add Concept Scheme")
+        with st.form("add_scheme_form"):
+            s_name = st.text_input("Scheme Name *")
+            s_label = st.text_input("Label")
+            s_comment = st.text_area("Comment")
+            if st.form_submit_button("Add Scheme"):
+                if not s_name:
+                    show_message("Scheme name is required!", "error")
+                elif s_name in scheme_names:
+                    show_message(f"Scheme '{s_name}' already exists!", "error")
+                else:
+                    ont.add_concept_scheme(s_name, label=s_label or None, comment=s_comment or None)
+                    save_checkpoint("Add concept scheme")
+                    show_message(f"Scheme '{s_name}' added!", "success")
+                    st.rerun()
+
+    with tab2:
+        st.subheader("Concepts")
+        if not concepts:
+            st.info("No concepts defined yet.")
+        else:
+            # Filter by scheme
+            filter_scheme = st.selectbox("Filter by Scheme", ["All"] + scheme_names,
+                                         key="concept_filter_scheme")
+            filtered = concepts if filter_scheme == "All" else ont.get_concepts(scheme=filter_scheme)
+
+            for concept in filtered:
+                pref = concept['prefLabel'] or concept['name']
+                badges = []
+                if concept['broader']:
+                    badges.append(f"broader: {', '.join(concept['broader'])}")
+                if concept['schemes']:
+                    badges.append(f"scheme: {', '.join(concept['schemes'])}")
+                badge_str = f" — {'; '.join(badges)}" if badges else ""
+
+                with st.expander(f"🏷️ **{pref}** ({concept['name']}){badge_str}"):
+                    st.write(f"**URI:** {concept['uri']}")
+                    st.write(f"**prefLabel:** {concept['prefLabel'] or '—'}")
+                    st.write(f"**definition:** {concept['definition'] or '—'}")
+                    if concept['altLabels']:
+                        st.write(f"**altLabels:** {', '.join(concept['altLabels'])}")
+                    if concept['broader']:
+                        st.write(f"**broader:** {', '.join(concept['broader'])}")
+                    if concept['narrower']:
+                        st.write(f"**narrower:** {', '.join(concept['narrower'])}")
+                    if concept['related']:
+                        st.write(f"**related:** {', '.join(concept['related'])}")
+
+                    # Add relation inline
+                    with st.popover("Add Relation"):
+                        rel_type = st.selectbox("Relation", list(ont.SKOS_RELATIONS.keys()),
+                                                key=f"rel_type_{concept['name']}")
+                        other_concepts = [c for c in concept_names if c != concept['name']]
+                        rel_target = st.selectbox("Target Concept", other_concepts,
+                                                  key=f"rel_target_{concept['name']}")
+                        if st.button("Add", key=f"add_rel_{concept['name']}"):
+                            ont.add_concept_relation(concept['name'], rel_type, rel_target)
+                            save_checkpoint("Add concept relation")
+                            show_message(f"Added {rel_type} relation!", "success")
+                            st.rerun()
+
+                    if st.button("🗑️ Delete", key=f"del_concept_{concept['name']}"):
+                        ont.delete_concept(concept['name'])
+                        save_checkpoint("Delete concept")
+                        set_flash_message(f"Concept '{concept['name']}' deleted!", "success")
+                        st.rerun()
+
+        st.divider()
+        st.subheader("Add Concept")
+        with st.form("add_concept_form"):
+            c_name = st.text_input("Concept Name *")
+            c_pref = st.text_input("Preferred Label")
+            c_def = st.text_area("Definition")
+            c_scheme = st.selectbox("Scheme", ["None"] + scheme_names, key="concept_scheme_select")
+            c_broader = st.selectbox("Broader Concept", ["None"] + concept_names, key="concept_broader_select")
+            c_lang = st.text_input("Language Tag (e.g., en, de)", key="concept_lang")
+            if st.form_submit_button("Add Concept"):
+                if not c_name:
+                    show_message("Concept name is required!", "error")
+                elif c_name in concept_names:
+                    show_message(f"Concept '{c_name}' already exists!", "error")
+                else:
+                    ont.add_concept(
+                        c_name,
+                        scheme=c_scheme if c_scheme != "None" else None,
+                        pref_label=c_pref or None,
+                        definition=c_def or None,
+                        broader=c_broader if c_broader != "None" else None,
+                        lang=c_lang or None,
+                    )
+                    save_checkpoint("Add concept")
+                    show_message(f"Concept '{c_name}' added!", "success")
+                    st.rerun()
+
+    with tab3:
+        st.subheader("Concept Hierarchy")
+        if not concepts:
+            st.info("No concepts to display.")
+        else:
+            h_scheme = st.selectbox("Scheme", ["All"] + scheme_names,
+                                    key="hierarchy_scheme_select")
+            hierarchy = ont.get_concept_hierarchy(
+                scheme=h_scheme if h_scheme != "All" else None
+            )
+
+            # Find root concepts (those that are not narrower of any other)
+            all_children = set()
+            for children in hierarchy.values():
+                all_children.update(children)
+            roots = [name for name in hierarchy if name not in all_children]
+
+            def render_tree(name, indent=0):
+                concept_data = next((c for c in concepts if c["name"] == name), None)
+                pref = concept_data["prefLabel"] if concept_data and concept_data["prefLabel"] else name
+                st.markdown(f"{'&nbsp;&nbsp;&nbsp;&nbsp;' * indent}{'└─ ' if indent > 0 else ''}**{pref}** ({name})")
+                for child in sorted(hierarchy.get(name, [])):
+                    render_tree(child, indent + 1)
+
+            for root in sorted(roots):
+                render_tree(root)
+
+            if not roots and hierarchy:
+                st.warning("All concepts have broader concepts — possible cycle.")
+
+    with tab4:
+        st.subheader("SKOS Validation")
+        if st.button("Run SKOS Validation", key="run_skos_validation"):
+            issues = ont.validate_skos()
+            if not issues:
+                st.success("No SKOS issues found!")
+            else:
+                for issue in issues:
+                    severity = issue["severity"]
+                    icon = {"error": "🔴", "warning": "🟡", "info": "🔵"}.get(severity, "⚪")
+                    st.markdown(f"{icon} **{issue['type']}** — {issue['subject']}: {issue['message']}")
+
 
 def render_import_export():
     """Render the import/export page."""
@@ -1592,7 +1904,7 @@ def render_import_export():
 
     ont = st.session_state.ontology
 
-    tab1, tab2, tab3 = st.tabs(["Import", "Export", "New Ontology"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Import", "Export", "New Ontology", "Templates"])
 
     with tab1:
         st.subheader("Import Ontology")
@@ -1884,6 +2196,39 @@ def render_import_export():
                     st.session_state.undo_manager = UndoManager(st.session_state.ontology)
                     show_message("New ontology created!", "success")
                     st.rerun()
+
+    with tab4:
+        st.subheader("Apply Template")
+        st.caption("Bootstrap your ontology from a built-in template.")
+
+        from templates import get_template_names, get_template, render_template
+
+        template_names = get_template_names()
+        selected_template = st.selectbox("Select Template", template_names, key="template_select")
+
+        if selected_template:
+            tmpl = get_template(selected_template)
+            st.write(f"**Description:** {tmpl['description']}")
+
+            with st.expander("Preview Turtle"):
+                base_uri = str(ont.namespace)
+                rendered = render_template(tmpl, base_uri)
+                st.code(rendered, language="turtle")
+
+            apply_mode = st.radio("Apply Mode",
+                                  ["Merge into current", "Replace current"],
+                                  horizontal=True, key="template_apply_mode")
+
+            if st.button("Apply Template", type="primary", key="apply_template_btn"):
+                base_uri = str(ont.namespace)
+                rendered = render_template(tmpl, base_uri)
+                if apply_mode == "Replace current":
+                    ont.load_from_string(rendered, "turtle")
+                else:
+                    ont.merge_from_string(rendered, "turtle")
+                save_checkpoint(f"Apply template: {selected_template}")
+                show_message(f"Template '{selected_template}' applied!", "success")
+                st.rerun()
 
 
 def render_advanced():
@@ -2684,6 +3029,7 @@ def main():
         "Restrictions": render_restrictions,
         "Advanced": render_advanced,
         "Annotations": render_annotations,
+        "SKOS Vocabulary": render_skos_vocabulary,
         "Import / Export": render_import_export,
         "Validation": render_validation,
         "Visualization": render_visualization

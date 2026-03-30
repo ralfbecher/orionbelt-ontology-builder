@@ -513,6 +513,189 @@ class OntologyManager:
                     hierarchy[name].append(self._local_name(child))
         return hierarchy
 
+    # ==================== BULK OPERATIONS ====================
+
+    @staticmethod
+    def parse_bulk_text(text: str, columns: List[str] = None) -> List[Dict[str, str]]:
+        """Parse multi-line text into list of dicts.
+
+        Supports:
+        - Simple mode: one name per line (returns dicts with 'name' key)
+        - CSV mode: comma-separated values with column headers
+
+        If columns are provided, each line is split by comma and mapped to columns.
+        If columns are not provided but the first line looks like a header
+        (contains 'name'), it's used as columns.
+        """
+        lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
+        if not lines:
+            return []
+
+        # Auto-detect CSV header
+        if columns is None and "," in lines[0]:
+            header = [c.strip().lower() for c in lines[0].split(",")]
+            if "name" in header:
+                columns = header
+                lines = lines[1:]
+
+        if columns:
+            result = []
+            for line in lines:
+                parts = [p.strip() for p in line.split(",")]
+                entry = {}
+                for i, col in enumerate(columns):
+                    entry[col] = parts[i] if i < len(parts) else ""
+                if entry.get("name"):
+                    result.append(entry)
+            return result
+
+        # Simple mode: one name per line
+        return [{"name": line} for line in lines]
+
+    def bulk_add_classes(self, entries: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Batch create classes.
+
+        Each entry dict can have: name, label, parent.
+        Returns {created: [], errors: [], skipped: []}.
+        """
+        result: Dict[str, Any] = {"created": [], "errors": [], "skipped": []}
+        existing = {c["name"] for c in self.get_classes()}
+
+        for entry in entries:
+            name = entry.get("name", "").strip()
+            if not name:
+                result["errors"].append({"name": "", "error": "Empty name"})
+                continue
+            if name in existing:
+                result["skipped"].append(name)
+                continue
+            try:
+                self.add_class(
+                    name,
+                    parent=entry.get("parent", "").strip() or None,
+                    label=entry.get("label", "").strip() or None,
+                )
+                result["created"].append(name)
+                existing.add(name)
+            except Exception as e:
+                result["errors"].append({"name": name, "error": str(e)})
+
+        return result
+
+    def bulk_add_properties(self, entries: List[Dict[str, str]],
+                            property_type: str = "object") -> Dict[str, Any]:
+        """Batch create properties.
+
+        Each entry dict can have: name, domain, range, label.
+        property_type: "object" or "data".
+        Returns {created: [], errors: [], skipped: []}.
+        """
+        result: Dict[str, Any] = {"created": [], "errors": [], "skipped": []}
+        if property_type == "object":
+            existing = {p["name"] for p in self.get_object_properties()}
+        else:
+            existing = {p["name"] for p in self.get_data_properties()}
+
+        for entry in entries:
+            name = entry.get("name", "").strip()
+            if not name:
+                result["errors"].append({"name": "", "error": "Empty name"})
+                continue
+            if name in existing:
+                result["skipped"].append(name)
+                continue
+            try:
+                domain = entry.get("domain", "").strip() or None
+                range_ = entry.get("range", "").strip() or None
+                label = entry.get("label", "").strip() or None
+                if property_type == "object":
+                    self.add_object_property(name, domain=domain, range_=range_, label=label)
+                else:
+                    self.add_data_property(name, domain=domain, range_=range_ or "string", label=label)
+                result["created"].append(name)
+                existing.add(name)
+            except Exception as e:
+                result["errors"].append({"name": name, "error": str(e)})
+
+        return result
+
+    def bulk_add_individuals(self, entries: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Batch create individuals.
+
+        Each entry dict can have: name, class, label.
+        Returns {created: [], errors: [], skipped: []}.
+        """
+        result: Dict[str, Any] = {"created": [], "errors": [], "skipped": []}
+        existing = {i["name"] for i in self.get_individuals()}
+
+        for entry in entries:
+            name = entry.get("name", "").strip()
+            if not name:
+                result["errors"].append({"name": "", "error": "Empty name"})
+                continue
+            class_name = entry.get("class", "").strip()
+            if not class_name:
+                result["errors"].append({"name": name, "error": "Missing class"})
+                continue
+            if name in existing:
+                result["skipped"].append(name)
+                continue
+            try:
+                self.add_individual(
+                    name,
+                    class_name=class_name,
+                    label=entry.get("label", "").strip() or None,
+                )
+                result["created"].append(name)
+                existing.add(name)
+            except Exception as e:
+                result["errors"].append({"name": name, "error": str(e)})
+
+        return result
+
+    def bulk_update_annotations(self, updates: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Apply batch annotation changes.
+
+        Each update dict has: resource, predicate, value, lang (optional),
+        and action ("add" or "delete"). If action is omitted, defaults to "add".
+        Returns {applied: int, errors: []}.
+        """
+        result: Dict[str, Any] = {"applied": 0, "errors": []}
+
+        for update in updates:
+            resource = update.get("resource", "").strip()
+            predicate = update.get("predicate", "").strip()
+            value = update.get("value", "").strip()
+            lang = update.get("lang", "").strip() or None
+            action = update.get("action", "add").strip().lower()
+
+            if not resource or not predicate:
+                result["errors"].append({
+                    "resource": resource,
+                    "error": "Missing resource or predicate",
+                })
+                continue
+
+            try:
+                if action == "delete":
+                    self.delete_annotation(resource, predicate, value=value or None, lang=lang)
+                else:
+                    if not value:
+                        result["errors"].append({
+                            "resource": resource,
+                            "error": "Missing value for add",
+                        })
+                        continue
+                    self.add_annotation(resource, predicate, value, lang=lang)
+                result["applied"] += 1
+            except Exception as e:
+                result["errors"].append({
+                    "resource": resource,
+                    "error": str(e),
+                })
+
+        return result
+
     # ==================== PROPERTY OPERATIONS ====================
 
     def add_object_property(self, name: str, domain: str = None, range_: str = None,
@@ -1120,6 +1303,288 @@ class OntologyManager:
                 to_remove.append(obj)
         for obj in to_remove:
             self.graph.remove((subj_uri, pred_uri, obj))
+
+    # ==================== SKOS VOCABULARY OPERATIONS ====================
+
+    SKOS_RELATIONS = {
+        "broader": SKOS.broader, "narrower": SKOS.narrower,
+        "related": SKOS.related, "broadMatch": SKOS.broadMatch,
+        "narrowMatch": SKOS.narrowMatch, "exactMatch": SKOS.exactMatch,
+        "closeMatch": SKOS.closeMatch, "relatedMatch": SKOS.relatedMatch,
+    }
+
+    SKOS_INVERSES = {
+        SKOS.broader: SKOS.narrower,
+        SKOS.narrower: SKOS.broader,
+    }
+
+    SKOS_SYMMETRIC = {SKOS.related, SKOS.closeMatch, SKOS.exactMatch, SKOS.relatedMatch}
+
+    def add_concept_scheme(self, name: str, label: str = None,
+                           comment: str = None) -> URIRef:
+        """Add a new SKOS ConceptScheme."""
+        scheme_uri = self._uri(name)
+        self.graph.add((scheme_uri, RDF.type, SKOS.ConceptScheme))
+        if label:
+            self.graph.add((scheme_uri, RDFS.label, Literal(label)))
+        if comment:
+            self.graph.add((scheme_uri, RDFS.comment, Literal(comment)))
+        return scheme_uri
+
+    def get_concept_schemes(self) -> List[Dict[str, Any]]:
+        """Get all SKOS ConceptSchemes."""
+        schemes = []
+        for uri in self.graph.subjects(RDF.type, SKOS.ConceptScheme):
+            if isinstance(uri, BNode):
+                continue
+            name = self._local_name(uri)
+            label = str(self.graph.value(uri, RDFS.label) or "")
+            comment = str(self.graph.value(uri, RDFS.comment) or "")
+            # Count concepts in this scheme
+            concept_count = sum(
+                1 for _ in self.graph.subjects(SKOS.inScheme, uri)
+            )
+            schemes.append({
+                "name": name,
+                "uri": str(uri),
+                "label": label,
+                "comment": comment,
+                "concept_count": concept_count,
+            })
+        return sorted(schemes, key=lambda s: s["name"])
+
+    def delete_concept_scheme(self, name: str):
+        """Delete a ConceptScheme and remove inScheme references."""
+        uri = self._uri(name)
+        self.graph.remove((uri, None, None))
+        self.graph.remove((None, SKOS.inScheme, uri))
+        self.graph.remove((None, None, uri))
+
+    def add_concept(self, name: str, scheme: str = None,
+                    pref_label: str = None, definition: str = None,
+                    broader: str = None, lang: str = None) -> URIRef:
+        """Add a SKOS Concept with optional scheme/broader links."""
+        concept_uri = self._uri(name)
+        self.graph.add((concept_uri, RDF.type, SKOS.Concept))
+
+        if scheme:
+            scheme_uri = self._uri(scheme)
+            self.graph.add((concept_uri, SKOS.inScheme, scheme_uri))
+
+        if pref_label:
+            if lang:
+                self.graph.add((concept_uri, SKOS.prefLabel, Literal(pref_label, lang=lang)))
+            else:
+                self.graph.add((concept_uri, SKOS.prefLabel, Literal(pref_label)))
+
+        if definition:
+            if lang:
+                self.graph.add((concept_uri, SKOS.definition, Literal(definition, lang=lang)))
+            else:
+                self.graph.add((concept_uri, SKOS.definition, Literal(definition)))
+
+        if broader:
+            broader_uri = self._uri(broader)
+            self.graph.add((concept_uri, SKOS.broader, broader_uri))
+            self.graph.add((broader_uri, SKOS.narrower, concept_uri))
+
+        return concept_uri
+
+    def get_concepts(self, scheme: str = None) -> List[Dict[str, Any]]:
+        """Get SKOS Concepts, optionally filtered by scheme."""
+        concepts = []
+        for uri in self.graph.subjects(RDF.type, SKOS.Concept):
+            if isinstance(uri, BNode):
+                continue
+
+            # Filter by scheme if specified
+            if scheme:
+                scheme_uri = self._uri(scheme)
+                if (uri, SKOS.inScheme, scheme_uri) not in self.graph:
+                    continue
+
+            name = self._local_name(uri)
+
+            pref_label = str(self.graph.value(uri, SKOS.prefLabel) or "")
+            definition = str(self.graph.value(uri, SKOS.definition) or "")
+
+            alt_labels = [str(o) for o in self.graph.objects(uri, SKOS.altLabel)]
+
+            broader_list = [
+                self._local_name(o) for o in self.graph.objects(uri, SKOS.broader)
+                if isinstance(o, URIRef)
+            ]
+            narrower_list = [
+                self._local_name(o) for o in self.graph.objects(uri, SKOS.narrower)
+                if isinstance(o, URIRef)
+            ]
+            related_list = [
+                self._local_name(o) for o in self.graph.objects(uri, SKOS.related)
+                if isinstance(o, URIRef)
+            ]
+
+            schemes = [
+                self._local_name(o) for o in self.graph.objects(uri, SKOS.inScheme)
+                if isinstance(o, URIRef)
+            ]
+
+            concepts.append({
+                "name": name,
+                "uri": str(uri),
+                "prefLabel": pref_label,
+                "definition": definition,
+                "altLabels": alt_labels,
+                "broader": broader_list,
+                "narrower": narrower_list,
+                "related": related_list,
+                "schemes": schemes,
+            })
+
+        return sorted(concepts, key=lambda c: c["name"])
+
+    def add_concept_relation(self, concept1: str, relation: str, concept2: str):
+        """Add a SKOS relation between two concepts.
+
+        Auto-adds inverse for broader/narrower and symmetric for related/matches.
+        """
+        c1_uri = self._uri(concept1)
+        c2_uri = self._uri(concept2)
+
+        rel_uri = self.SKOS_RELATIONS.get(relation)
+        if not rel_uri:
+            raise ValueError(f"Unknown SKOS relation: {relation}")
+
+        self.graph.add((c1_uri, rel_uri, c2_uri))
+
+        # Auto-add inverse
+        inverse = self.SKOS_INVERSES.get(rel_uri)
+        if inverse:
+            self.graph.add((c2_uri, inverse, c1_uri))
+
+        # Auto-add symmetric
+        if rel_uri in self.SKOS_SYMMETRIC:
+            self.graph.add((c2_uri, rel_uri, c1_uri))
+
+    def delete_concept(self, name: str):
+        """Remove a concept and all its SKOS relations."""
+        uri = self._uri(name)
+
+        # Remove inverse narrower/broader pointing to this concept
+        for rel, inv in self.SKOS_INVERSES.items():
+            for other in self.graph.objects(uri, rel):
+                self.graph.remove((other, inv, uri))
+            for other in self.graph.subjects(rel, uri):
+                self.graph.remove((other, rel, uri))
+
+        # Remove symmetric relations
+        for rel in self.SKOS_SYMMETRIC:
+            for other in self.graph.objects(uri, rel):
+                self.graph.remove((other, rel, uri))
+
+        # Remove all triples with this concept
+        self.graph.remove((uri, None, None))
+        self.graph.remove((None, None, uri))
+
+    def get_concept_hierarchy(self, scheme: str = None) -> Dict[str, List[str]]:
+        """Return concept hierarchy as {parent: [children]} dict."""
+        hierarchy: Dict[str, List[str]] = {}
+        concepts = self.get_concepts(scheme=scheme)
+
+        for concept in concepts:
+            name = concept["name"]
+            if name not in hierarchy:
+                hierarchy[name] = []
+            for child_name in concept["narrower"]:
+                hierarchy[name].append(child_name)
+                if child_name not in hierarchy:
+                    hierarchy[child_name] = []
+
+        return hierarchy
+
+    def validate_skos(self) -> List[Dict[str, str]]:
+        """Validate SKOS concepts and schemes.
+
+        Checks:
+        - Missing prefLabel
+        - Concept not in any scheme
+        - Orphan concepts (no broader and not top concept)
+        - Duplicate prefLabels within a scheme
+        - Broader/narrower cycles
+        """
+        issues = []
+
+        concepts = self.get_concepts()
+        schemes = self.get_concept_schemes()
+
+        for concept in concepts:
+            # Missing prefLabel
+            if not concept["prefLabel"]:
+                issues.append({
+                    "severity": "warning",
+                    "type": "missing_prefLabel",
+                    "subject": concept["name"],
+                    "message": f"Concept '{concept['name']}' has no prefLabel",
+                })
+
+            # Not in any scheme
+            if not concept["schemes"] and schemes:
+                issues.append({
+                    "severity": "info",
+                    "type": "no_scheme",
+                    "subject": concept["name"],
+                    "message": f"Concept '{concept['name']}' is not in any ConceptScheme",
+                })
+
+        # Duplicate prefLabels within schemes
+        for scheme in schemes:
+            scheme_concepts = self.get_concepts(scheme=scheme["name"])
+            labels_seen: Dict[str, str] = {}
+            for concept in scheme_concepts:
+                lbl = concept["prefLabel"]
+                if lbl and lbl in labels_seen:
+                    issues.append({
+                        "severity": "warning",
+                        "type": "duplicate_prefLabel",
+                        "subject": concept["name"],
+                        "message": f"Duplicate prefLabel '{lbl}' in scheme '{scheme['name']}' (also on '{labels_seen[lbl]}')",
+                    })
+                elif lbl:
+                    labels_seen[lbl] = concept["name"]
+
+        # Broader/narrower cycle detection
+        concept_names = {c["name"] for c in concepts}
+        for concept in concepts:
+            visited: Set[str] = set()
+            current = concept["name"]
+            chain = [current]
+            has_cycle = False
+            while True:
+                broader_list = []
+                for c in concepts:
+                    if c["name"] == current:
+                        broader_list = c["broader"]
+                        break
+                if not broader_list:
+                    break
+                next_name = broader_list[0]
+                if next_name in visited:
+                    has_cycle = True
+                    break
+                if next_name not in concept_names:
+                    break
+                visited.add(current)
+                current = next_name
+                chain.append(current)
+
+            if has_cycle:
+                issues.append({
+                    "severity": "error",
+                    "type": "broader_cycle",
+                    "subject": concept["name"],
+                    "message": f"Broader/narrower cycle detected: {' -> '.join(chain)}",
+                })
+
+        return issues
 
     # ==================== RELATIONS OPERATIONS ====================
 
