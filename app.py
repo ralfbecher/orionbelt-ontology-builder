@@ -3171,18 +3171,6 @@ def main():
     st.sidebar.markdown("\u00a9 2025 [RALFORION d.o.o.](https://ralforion.com)")
     st.sidebar.caption(f"v{APP_VERSION}")
 
-    # Show current ontology name
-    ont = st.session_state.ontology
-    meta = ont.get_ontology_metadata()
-    ont_label = meta.get("label", "")
-    if ont_label:
-        st.sidebar.markdown(f"**{ont_label}**")
-    else:
-        base = str(ont.namespace).rstrip("#/").rsplit("/", 1)[-1]
-        st.sidebar.caption(f"{base}")
-
-    st.sidebar.divider()
-
     pages = {
         "Dashboard": render_dashboard,
         "Classes": render_classes,
@@ -3289,6 +3277,16 @@ def main():
     st.sidebar.write(f"📝 Data Props: {stats['data_properties']}")
     st.sidebar.write(f"👤 Individuals: {stats['individuals']}")
     st.sidebar.write(f"📊 Triples: {stats['content_triples']}")
+
+    # Show ontology name in main area
+    ont = st.session_state.ontology
+    meta = ont.get_ontology_metadata()
+    ont_label = meta.get("label", "")
+    ont_uri = str(ont.namespace)
+    if ont_label:
+        st.caption(f"{ont_label} — `{ont_uri}`")
+    else:
+        st.caption(f"`{ont_uri}`")
 
     # Render selected page
     pages[selection]()
