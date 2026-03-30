@@ -108,6 +108,27 @@ def display_flash_message():
         st.session_state.flash_message = None
 
 
+def confirm_delete(resource_name: str, resource_type: str, key_suffix: str) -> bool:
+    """Show delete impact and confirmation UI. Returns True when confirmed."""
+    ont = st.session_state.ontology
+    confirm_key = f"confirm_delete_{key_suffix}"
+
+    if st.session_state.get(confirm_key):
+        impact = ont.get_delete_impact(resource_name, resource_type)
+        summary = ont.format_delete_impact(impact)
+        st.warning(summary)
+        col_yes, col_no = st.columns(2)
+        with col_yes:
+            if st.button("Confirm Delete", key=f"yes_{confirm_key}", type="primary"):
+                st.session_state[confirm_key] = False
+                return True
+        with col_no:
+            if st.button("Cancel", key=f"no_{confirm_key}"):
+                st.session_state[confirm_key] = False
+                st.rerun()
+    return False
+
+
 def format_label_name(name: str, label: str) -> str:
     """Format display string as 'Label (name)' if label exists and differs from name."""
     if label and label != name:
@@ -362,9 +383,13 @@ def render_classes():
                             st.session_state[f"edit_class_{cls['name']}"] = not st.session_state[f"edit_class_{cls['name']}"]
 
                         if st.button("🗑️ Delete", key=f"btn_del_class_{cls['name']}"):
-                            ont.delete_class(cls["name"])
-                            show_message(f"Class '{cls['name']}' deleted!", "success")
+                            st.session_state[f"confirm_delete_class_{cls['name']}"] = True
                             st.rerun()
+
+                    if confirm_delete(cls["name"], "class", f"class_{cls['name']}"):
+                        ont.delete_class(cls["name"])
+                        set_flash_message(f"Class '{cls['name']}' deleted!", "success")
+                        st.rerun()
 
                     # Inline edit form
                     if st.session_state.get(f"edit_class_{cls['name']}", False):
@@ -488,9 +513,13 @@ def render_classes():
                             st.rerun()
 
                         if delete_btn:
-                            ont.delete_class(selected_class)
-                            show_message(f"Class '{selected_class}' deleted!", "success")
+                            st.session_state[f"confirm_delete_class_detail_{selected_class}"] = True
                             st.rerun()
+
+                if confirm_delete(selected_class, "class", f"class_detail_{selected_class}"):
+                    ont.delete_class(selected_class)
+                    set_flash_message(f"Class '{selected_class}' deleted!", "success")
+                    st.rerun()
 
 
 def render_properties():
@@ -555,9 +584,13 @@ def render_properties():
                             st.session_state[f"edit_objprop_{prop['name']}"] = not st.session_state[f"edit_objprop_{prop['name']}"]
 
                         if st.button("🗑️ Delete", key=f"btn_del_objprop_{prop['name']}"):
-                            ont.delete_property(prop["name"])
-                            show_message(f"Property '{prop['name']}' deleted!", "success")
+                            st.session_state[f"confirm_delete_objprop_{prop['name']}"] = True
                             st.rerun()
+
+                    if confirm_delete(prop["name"], "property", f"objprop_{prop['name']}"):
+                        ont.delete_property(prop["name"])
+                        set_flash_message(f"Property '{prop['name']}' deleted!", "success")
+                        st.rerun()
 
                     # Inline edit form
                     if st.session_state.get(f"edit_objprop_{prop['name']}", False):
@@ -617,7 +650,7 @@ def render_properties():
 
             st.caption(f"Showing {len(filtered_data_props)} of {len(data_props)} properties")
 
-            datatypes = list(OntologyManager.XSD_DATATYPES.keys())
+            datatypes = list(get_ontology_manager_class().XSD_DATATYPES.keys())
 
             for prop in filtered_data_props:
                 with st.expander(f"📝 **{prop['name']}** ({prop['domain'] or '?'} → {prop['range']})"):
@@ -641,9 +674,13 @@ def render_properties():
                             st.session_state[f"edit_dataprop_{prop['name']}"] = not st.session_state[f"edit_dataprop_{prop['name']}"]
 
                         if st.button("🗑️ Delete", key=f"btn_del_dataprop_{prop['name']}"):
-                            ont.delete_property(prop["name"])
-                            show_message(f"Property '{prop['name']}' deleted!", "success")
+                            st.session_state[f"confirm_delete_dataprop_{prop['name']}"] = True
                             st.rerun()
+
+                    if confirm_delete(prop["name"], "property", f"dataprop_{prop['name']}"):
+                        ont.delete_property(prop["name"])
+                        set_flash_message(f"Property '{prop['name']}' deleted!", "success")
+                        st.rerun()
 
                     # Inline edit form
                     if st.session_state.get(f"edit_dataprop_{prop['name']}", False):
@@ -752,7 +789,7 @@ def render_properties():
                 domain = st.selectbox("Domain (Class)", options=["None"] + class_names,
                                      key="data_prop_domain")
             with col2:
-                datatypes = list(OntologyManager.XSD_DATATYPES.keys())
+                datatypes = list(get_ontology_manager_class().XSD_DATATYPES.keys())
                 range_ = st.selectbox("Range (Datatype)", options=datatypes,
                                      key="data_prop_range")
 
@@ -821,9 +858,13 @@ def render_individuals():
                             st.session_state[f"edit_ind_{ind['name']}"] = not st.session_state[f"edit_ind_{ind['name']}"]
 
                         if st.button("🗑️ Delete", key=f"btn_del_ind_{ind['name']}"):
-                            ont.delete_individual(ind["name"])
-                            show_message(f"Individual '{ind['name']}' deleted!", "success")
+                            st.session_state[f"confirm_delete_ind_{ind['name']}"] = True
                             st.rerun()
+
+                    if confirm_delete(ind["name"], "individual", f"ind_{ind['name']}"):
+                        ont.delete_individual(ind["name"])
+                        set_flash_message(f"Individual '{ind['name']}' deleted!", "success")
+                        st.rerun()
 
                     # Inline edit form
                     if st.session_state.get(f"edit_ind_{ind['name']}", False):
@@ -1285,7 +1326,10 @@ def render_annotations():
                                 st.write(f"{ann['value']}{lang_str}{dtype_str}")
                             with col3:
                                 if st.button("🗑️", key=f"del_ann_{resource_name}_{ann['predicate']}_{hash(ann['value'])}"):
-                                    ont.delete_annotation(resource_name, ann['predicate'], ann['value'])
+                                    ont.delete_annotation(
+                                        resource_name, ann['predicate'], ann['value'],
+                                        lang=ann.get('language'), datatype=ann.get('datatype')
+                                    )
                                     show_message("Annotation deleted!", "success")
                                     st.rerun()
 
@@ -1483,7 +1527,7 @@ def render_import_export():
                 if not base_uri:
                     show_message("Base URI is required!", "error")
                 else:
-                    st.session_state.ontology = OntologyManager(base_uri=base_uri)
+                    st.session_state.ontology = get_ontology_manager_class()(base_uri=base_uri)
                     st.session_state.ontology.set_ontology_metadata(
                         label=label, comment=comment,
                         creator=creator

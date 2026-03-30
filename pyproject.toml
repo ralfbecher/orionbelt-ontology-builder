@@ -1,0 +1,26 @@
+[project]
+name = "orionbelt-ontology-builder"
+version = "0.1.0"
+description = "A Streamlit application for building, editing, and managing OWL ontologies"
+requires-python = ">=3.10"
+dependencies = [
+    "streamlit>=1.28.0",
+    "rdflib>=7.0.0",
+    "owlrl>=6.0.2",
+    "networkx>=3.0",
+    "pyvis>=0.3.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"

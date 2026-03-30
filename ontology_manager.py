@@ -8,6 +8,8 @@ from rdflib.collection import Collection
 from typing import Optional, List, Dict, Tuple, Any, Set
 import owlrl
 
+_UNSET = object()  # sentinel: "parameter not provided"
+
 
 class OntologyManager:
     """Manages OWL ontology operations including CRUD for classes, properties, individuals, and restrictions."""
@@ -61,17 +63,32 @@ class OntologyManager:
         self.ontology_uri = URIRef(base_uri.rstrip("#").rstrip("/"))
         self.graph.add((self.ontology_uri, RDF.type, OWL.Ontology))
 
-    def set_ontology_metadata(self, label: str = None, comment: str = None,
-                              creator: str = None, version_iri: str = None):
-        """Set ontology-level metadata."""
-        if label:
-            self.graph.set((self.ontology_uri, RDFS.label, Literal(label)))
-        if comment:
-            self.graph.set((self.ontology_uri, RDFS.comment, Literal(comment)))
-        if creator:
-            self.graph.set((self.ontology_uri, DCTERMS.creator, Literal(creator)))
-        if version_iri:
-            self.graph.set((self.ontology_uri, OWL.versionIRI, URIRef(version_iri)))
+    def set_ontology_metadata(self, label=_UNSET, comment=_UNSET,
+                              creator=_UNSET, version_iri=_UNSET):
+        """Set ontology-level metadata.
+
+        Pass a non-empty string to set a value.
+        Pass an empty string or None to clear an existing value.
+        Omit the parameter (or don't pass it) to leave the field unchanged.
+        """
+        _LITERAL_FIELDS = [
+            (label, RDFS.label),
+            (comment, RDFS.comment),
+            (creator, DCTERMS.creator),
+        ]
+        for value, predicate in _LITERAL_FIELDS:
+            if value is _UNSET:
+                continue
+            if value:
+                self.graph.set((self.ontology_uri, predicate, Literal(value)))
+            else:
+                self.graph.remove((self.ontology_uri, predicate, None))
+
+        if version_iri is not _UNSET:
+            if version_iri:
+                self.graph.set((self.ontology_uri, OWL.versionIRI, URIRef(version_iri)))
+            else:
+                self.graph.remove((self.ontology_uri, OWL.versionIRI, None))
 
     def add_import(self, import_uri: str):
         """Add an owl:imports declaration."""
@@ -252,6 +269,107 @@ class OntologyManager:
             self.graph.add(new_triple)
 
         return True
+
+    def get_delete_impact(self, name: str, resource_type: str = "class") -> Dict[str, Any]:
+        """Analyse the impact of deleting a resource before executing it.
+
+        Args:
+            name: local name or full URI of the resource
+            resource_type: one of "class", "property", "individual"
+
+        Returns a dict with categorised impact counts and details.
+        """
+        uri = self._uri(name)
+        impact: Dict[str, Any] = {
+            "resource": name,
+            "resource_type": resource_type,
+            "direct_triples": 0,
+            "subclasses": [],
+            "instances": [],
+            "domain_of": [],
+            "range_of": [],
+            "annotations": 0,
+            "relations": [],
+            "property_assertions": [],
+        }
+
+        if resource_type == "class":
+            # Subclasses that reference this class as parent
+            for child in self.graph.subjects(RDFS.subClassOf, uri):
+                if isinstance(child, URIRef):
+                    impact["subclasses"].append(self._local_name(child))
+
+            # Instances typed with this class
+            for ind in self.graph.subjects(RDF.type, uri):
+                if isinstance(ind, URIRef) and (ind, RDF.type, OWL.NamedIndividual) in self.graph:
+                    impact["instances"].append(self._local_name(ind))
+
+            # Properties that use this class as domain
+            for prop in self.graph.subjects(RDFS.domain, uri):
+                if isinstance(prop, URIRef):
+                    impact["domain_of"].append(self._local_name(prop))
+
+            # Properties that use this class as range
+            for prop in self.graph.subjects(RDFS.range, uri):
+                if isinstance(prop, URIRef):
+                    impact["range_of"].append(self._local_name(prop))
+
+        elif resource_type == "property":
+            # Triples where this property is used as predicate
+            for s, o in self.graph.subject_objects(uri):
+                if isinstance(s, URIRef):
+                    impact["property_assertions"].append(
+                        f"{self._local_name(s)} -> {self._local_name(o) if isinstance(o, URIRef) else str(o)}"
+                    )
+
+        elif resource_type == "individual":
+            # Relations referencing this individual as object
+            for s, p in self.graph.subject_predicates(uri):
+                if isinstance(s, URIRef) and p not in (RDF.type,):
+                    impact["relations"].append(
+                        f"{self._local_name(s)} {self._local_name(p)}"
+                    )
+
+        # Count direct triples (subject) and referencing triples (object)
+        impact["direct_triples"] = len(list(self.graph.predicate_objects(uri)))
+
+        # Count annotations (literal-valued predicates on this resource)
+        structural = {RDF.type, RDFS.subClassOf, RDFS.subPropertyOf,
+                      RDFS.domain, RDFS.range, OWL.equivalentClass,
+                      OWL.disjointWith, OWL.inverseOf}
+        for p, o in self.graph.predicate_objects(uri):
+            if p not in structural and isinstance(o, Literal):
+                impact["annotations"] += 1
+
+        # Total affected triples (as subject + as object + as predicate for properties)
+        ref_count = len(list(self.graph.subject_predicates(uri)))
+        pred_count = len(list(self.graph.subject_objects(uri))) if resource_type == "property" else 0
+        impact["total_triples"] = impact["direct_triples"] + ref_count + pred_count
+
+        return impact
+
+    def format_delete_impact(self, impact: Dict[str, Any]) -> str:
+        """Format an impact dict into a human-readable summary string."""
+        parts = []
+        rt = impact["resource_type"]
+        parts.append(f"Deleting {rt} **{impact['resource']}** will remove {impact['total_triples']} triple(s).")
+
+        if impact["subclasses"]:
+            parts.append(f"- {len(impact['subclasses'])} subclass link(s) lost: {', '.join(impact['subclasses'])}")
+        if impact["instances"]:
+            parts.append(f"- {len(impact['instances'])} instance(s) lose their class type: {', '.join(impact['instances'])}")
+        if impact["domain_of"]:
+            parts.append(f"- {len(impact['domain_of'])} property domain reference(s) lost: {', '.join(impact['domain_of'])}")
+        if impact["range_of"]:
+            parts.append(f"- {len(impact['range_of'])} property range reference(s) lost: {', '.join(impact['range_of'])}")
+        if impact["annotations"]:
+            parts.append(f"- {impact['annotations']} annotation(s) removed")
+        if impact["property_assertions"]:
+            parts.append(f"- {len(impact['property_assertions'])} property assertion(s) removed")
+        if impact["relations"]:
+            parts.append(f"- {len(impact['relations'])} inbound relation(s) removed")
+
+        return "\n".join(parts)
 
     def delete_class(self, name: str):
         """Delete a class and all its references."""
@@ -872,8 +990,14 @@ class OntologyManager:
                 return prefix if prefix else "(default)"
         return ""
 
-    def delete_annotation(self, subject: str, predicate: str, value: str = None):
-        """Delete an annotation from a resource."""
+    def delete_annotation(self, subject: str, predicate: str, value: str = None,
+                          lang: str = None, datatype: str = None):
+        """Delete an annotation from a resource.
+
+        Matches language-tagged and datatype-qualified literals when lang/datatype
+        are provided. When they are not provided but a value is given, searches
+        for any literal with a matching string value regardless of tag.
+        """
         subj_uri = self._uri(subject)
 
         annotation_predicates = {
@@ -884,10 +1008,26 @@ class OntologyManager:
 
         pred_uri = annotation_predicates.get(predicate, self._uri(predicate))
 
-        if value:
-            self.graph.remove((subj_uri, pred_uri, Literal(value)))
-        else:
+        if value is None:
             self.graph.remove((subj_uri, pred_uri, None))
+            return
+
+        # Build exact literal if lang or datatype is known
+        if lang:
+            self.graph.remove((subj_uri, pred_uri, Literal(value, lang=lang)))
+            return
+        if datatype:
+            dt_uri = self.XSD_DATATYPES.get(datatype, URIRef(datatype))
+            self.graph.remove((subj_uri, pred_uri, Literal(value, datatype=dt_uri)))
+            return
+
+        # No lang/datatype specified: remove any literal whose string value matches
+        to_remove = []
+        for obj in self.graph.objects(subj_uri, pred_uri):
+            if isinstance(obj, Literal) and str(obj) == value:
+                to_remove.append(obj)
+        for obj in to_remove:
+            self.graph.remove((subj_uri, pred_uri, obj))
 
     # ==================== RELATIONS OPERATIONS ====================
 
@@ -1204,41 +1344,26 @@ class OntologyManager:
 
     def _update_namespace_from_graph(self):
         """Update namespace based on loaded ontology."""
+        found_ontology = False
+
         # Try to find the ontology URI
         for ont in self.graph.subjects(RDF.type, OWL.Ontology):
             if isinstance(ont, URIRef):
                 self.ontology_uri = ont
                 uri_str = str(ont)
-                if uri_str.endswith("#") or uri_str.endswith("/"):
-                    self.base_uri = uri_str
-                else:
-                    # Check what separator is used in actual resources
-                    # Look for classes/properties to determine the pattern
-                    sample_uri = None
-                    for s in self.graph.subjects(RDF.type, OWL.Class):
-                        if isinstance(s, URIRef):
-                            sample_uri = str(s)
-                            break
-                    if not sample_uri:
-                        for s in self.graph.subjects(RDF.type, OWL.ObjectProperty):
-                            if isinstance(s, URIRef):
-                                sample_uri = str(s)
-                                break
-
-                    # Determine separator based on sample URI
-                    if sample_uri and uri_str in sample_uri:
-                        # Extract what comes after the ontology URI
-                        remainder = sample_uri[len(uri_str):]
-                        if remainder.startswith("/"):
-                            self.base_uri = uri_str + "/"
-                        elif remainder.startswith("#"):
-                            self.base_uri = uri_str + "#"
-                        else:
-                            self.base_uri = uri_str + "#"
-                    else:
-                        self.base_uri = uri_str + "#"
+                self.base_uri = self._detect_base_uri(uri_str)
                 self.namespace = Namespace(self.base_uri)
+                found_ontology = True
                 break
+
+        # Fallback: infer namespace from graph prefixes and resource URIs
+        if not found_ontology:
+            inferred = self._infer_namespace_from_graph()
+            if inferred:
+                self.base_uri = inferred
+                self.namespace = Namespace(self.base_uri)
+                self.ontology_uri = URIRef(self.base_uri.rstrip("#").rstrip("/"))
+                self.graph.add((self.ontology_uri, RDF.type, OWL.Ontology))
 
         # Re-bind prefixes
         self.graph.bind("owl", OWL)
@@ -1248,6 +1373,63 @@ class OntologyManager:
         self.graph.bind("skos", SKOS)
         self.graph.bind("dc", DC)
         self.graph.bind("dcterms", DCTERMS)
+
+    def _detect_base_uri(self, uri_str: str) -> str:
+        """Detect the base URI with separator from an ontology URI string."""
+        if uri_str.endswith("#") or uri_str.endswith("/"):
+            return uri_str
+
+        sample_uri = self._find_sample_resource_uri()
+        if sample_uri and uri_str in sample_uri:
+            remainder = sample_uri[len(uri_str):]
+            if remainder.startswith("/"):
+                return uri_str + "/"
+            elif remainder.startswith("#"):
+                return uri_str + "#"
+        return uri_str + "#"
+
+    def _find_sample_resource_uri(self) -> Optional[str]:
+        """Find a sample resource URI from classes or properties in the graph."""
+        for rdf_type in (OWL.Class, OWL.ObjectProperty, OWL.DatatypeProperty,
+                         OWL.NamedIndividual):
+            for s in self.graph.subjects(RDF.type, rdf_type):
+                if isinstance(s, URIRef):
+                    return str(s)
+        return None
+
+    def _infer_namespace_from_graph(self) -> Optional[str]:
+        """Infer namespace from graph prefixes and resource URIs when no owl:Ontology exists."""
+        STANDARD_NAMESPACES = {
+            str(OWL), str(RDF), str(RDFS), str(XSD),
+            str(SKOS), str(DC), str(DCTERMS),
+        }
+
+        # Try the default prefix first (most likely the ontology namespace)
+        for prefix, ns in self.graph.namespaces():
+            ns_str = str(ns)
+            if prefix == "" and ns_str not in STANDARD_NAMESPACES:
+                return ns_str
+
+        # Try to find the most common namespace among typed resources
+        from collections import Counter
+        ns_counter: Counter = Counter()
+        for rdf_type in (OWL.Class, OWL.ObjectProperty, OWL.DatatypeProperty,
+                         OWL.NamedIndividual):
+            for s in self.graph.subjects(RDF.type, rdf_type):
+                if isinstance(s, URIRef):
+                    uri_str = str(s)
+                    for sep in ("#", "/"):
+                        idx = uri_str.rfind(sep)
+                        if idx != -1:
+                            candidate = uri_str[:idx + 1]
+                            if candidate not in STANDARD_NAMESPACES:
+                                ns_counter[candidate] += 1
+                            break
+
+        if ns_counter:
+            return ns_counter.most_common(1)[0][0]
+
+        return None
 
     def export_to_string(self, format: str = "turtle") -> str:
         """Export ontology to a string."""
@@ -1341,6 +1523,32 @@ class OntologyManager:
             if isinstance(cls, URIRef):
                 used_classes.add(str(cls))
 
+        # Classes referenced in restrictions (someValuesFrom, allValuesFrom, etc.)
+        for restriction_pred in (OWL.someValuesFrom, OWL.allValuesFrom, OWL.hasValue):
+            for obj in self.graph.objects(None, restriction_pred):
+                if isinstance(obj, URIRef):
+                    used_classes.add(str(obj))
+
+        # Classes in class expressions (unionOf, intersectionOf, complementOf)
+        for expr_pred in (OWL.equivalentClass, OWL.disjointWith):
+            for s in self.graph.subjects(expr_pred, None):
+                if isinstance(s, URIRef):
+                    used_classes.add(str(s))
+            for o in self.graph.objects(None, expr_pred):
+                if isinstance(o, URIRef):
+                    used_classes.add(str(o))
+
+        # Report orphan classes
+        orphan_classes = all_classes - used_classes
+        for orphan_uri in orphan_classes:
+            name = self._local_name(URIRef(orphan_uri))
+            issues.append({
+                "severity": "info",
+                "type": "orphan_class",
+                "subject": name,
+                "message": f"Class '{name}' is not used in any hierarchy, property domain/range, restriction, or instance typing"
+            })
+
         # Check individuals have at least one class
         for ind_uri in self.graph.subjects(RDF.type, OWL.NamedIndividual):
             classes = [c for c in self.graph.objects(ind_uri, RDF.type)
@@ -1351,6 +1559,85 @@ class OntologyManager:
                     "type": "untyped_individual",
                     "subject": self._local_name(ind_uri),
                     "message": f"Individual '{self._local_name(ind_uri)}' has no class type"
+                })
+
+        # Check domain/range usage for property assertions on individuals
+        def _expand_superclasses(class_uris: Set[str]) -> Set[str]:
+            """Expand a set of class URIs to include all superclasses."""
+            expanded = set(class_uris)
+            frontier = list(class_uris)
+            while frontier:
+                cls = frontier.pop()
+                for parent in self.graph.objects(URIRef(cls), RDFS.subClassOf):
+                    if isinstance(parent, URIRef):
+                        parent_str = str(parent)
+                        if parent_str not in expanded:
+                            expanded.add(parent_str)
+                            frontier.append(parent_str)
+            return expanded
+
+        for ind_uri in self.graph.subjects(RDF.type, OWL.NamedIndividual):
+            if not isinstance(ind_uri, URIRef):
+                continue
+            ind_name = self._local_name(ind_uri)
+            ind_direct_classes = {str(c) for c in self.graph.objects(ind_uri, RDF.type)
+                                  if isinstance(c, URIRef) and c != OWL.NamedIndividual}
+            ind_all_classes = _expand_superclasses(ind_direct_classes)
+
+            for pred, obj in self.graph.predicate_objects(ind_uri):
+                if pred == RDF.type or isinstance(pred, BNode):
+                    continue
+
+                # Check object properties
+                if (pred, RDF.type, OWL.ObjectProperty) in self.graph:
+                    domain = self.graph.value(pred, RDFS.domain)
+                    if domain and isinstance(domain, URIRef) and str(domain) not in ind_all_classes:
+                        issues.append({
+                            "severity": "warning",
+                            "type": "domain_mismatch",
+                            "subject": ind_name,
+                            "message": f"Individual '{ind_name}' uses property '{self._local_name(pred)}' but is not typed as '{self._local_name(domain)}'"
+                        })
+
+                    range_ = self.graph.value(pred, RDFS.range)
+                    if range_ and isinstance(range_, URIRef) and isinstance(obj, URIRef):
+                        obj_direct = {str(c) for c in self.graph.objects(obj, RDF.type)
+                                      if isinstance(c, URIRef) and c != OWL.NamedIndividual}
+                        obj_all_classes = _expand_superclasses(obj_direct)
+                        if str(range_) not in obj_all_classes:
+                            issues.append({
+                                "severity": "warning",
+                                "type": "range_mismatch",
+                                "subject": ind_name,
+                                "message": f"Property '{self._local_name(pred)}' on '{ind_name}' expects range '{self._local_name(range_)}' but '{self._local_name(obj)}' is not typed as such"
+                            })
+
+                # Check data properties
+                elif (pred, RDF.type, OWL.DatatypeProperty) in self.graph:
+                    domain = self.graph.value(pred, RDFS.domain)
+                    if domain and isinstance(domain, URIRef) and str(domain) not in ind_all_classes:
+                        issues.append({
+                            "severity": "warning",
+                            "type": "domain_mismatch",
+                            "subject": ind_name,
+                            "message": f"Individual '{ind_name}' uses data property '{self._local_name(pred)}' but is not typed as '{self._local_name(domain)}'"
+                        })
+
+        # Check for duplicate rdfs:label values across resources
+        from collections import defaultdict
+        label_to_resources: Dict[str, List[str]] = defaultdict(list)
+        for subj, label_val in self.graph.subject_objects(RDFS.label):
+            if isinstance(subj, URIRef) and isinstance(label_val, Literal):
+                label_str = str(label_val)
+                name = self._local_name(subj)
+                label_to_resources[label_str].append(name)
+        for label_str, resources in label_to_resources.items():
+            if len(resources) > 1:
+                issues.append({
+                    "severity": "warning",
+                    "type": "duplicate_label",
+                    "subject": ", ".join(sorted(resources)),
+                    "message": f"Duplicate label '{label_str}' shared by: {', '.join(sorted(resources))}"
                 })
 
         return issues
