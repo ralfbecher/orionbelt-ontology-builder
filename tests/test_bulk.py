@@ -148,3 +148,33 @@ class TestBulkUpdateAnnotations:
         updates = [{"resource": "Person", "predicate": "label", "value": ""}]
         result = om_with_classes.bulk_update_annotations(updates)
         assert len(result["errors"]) == 1
+
+
+class TestBulkDeleteClasses:
+    def test_delete_multiple(self, om_with_classes):
+        result = om_with_classes.bulk_delete_classes(["Person", "Animal"])
+        assert result["deleted"] == ["Person", "Animal"]
+        classes = [c["name"] for c in om_with_classes.get_classes()]
+        assert "Person" not in classes
+        assert "Animal" not in classes
+
+    def test_delete_empty_list(self, om_with_classes):
+        result = om_with_classes.bulk_delete_classes([])
+        assert result["deleted"] == []
+
+
+class TestBulkDeleteProperties:
+    def test_delete_property(self, om_with_classes):
+        om_with_classes.add_object_property("likes")
+        result = om_with_classes.bulk_delete_properties(["likes"])
+        assert result["deleted"] == ["likes"]
+
+
+class TestBulkDeleteIndividuals:
+    def test_delete_multiple(self, om_with_classes):
+        om_with_classes.add_individual("fido", "Animal")
+        om_with_classes.add_individual("rex", "Animal")
+        result = om_with_classes.bulk_delete_individuals(["fido", "rex"])
+        assert result["deleted"] == ["fido", "rex"]
+        inds = [i["name"] for i in om_with_classes.get_individuals()]
+        assert "fido" not in inds

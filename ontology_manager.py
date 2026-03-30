@@ -653,6 +653,39 @@ class OntologyManager:
 
         return result
 
+    def bulk_delete_classes(self, names: List[str]) -> Dict[str, Any]:
+        """Batch delete classes. Returns {deleted: [], errors: []}."""
+        result: Dict[str, Any] = {"deleted": [], "errors": []}
+        for name in names:
+            try:
+                self.delete_class(name)
+                result["deleted"].append(name)
+            except Exception as e:
+                result["errors"].append({"name": name, "error": str(e)})
+        return result
+
+    def bulk_delete_properties(self, names: List[str]) -> Dict[str, Any]:
+        """Batch delete properties. Returns {deleted: [], errors: []}."""
+        result: Dict[str, Any] = {"deleted": [], "errors": []}
+        for name in names:
+            try:
+                self.delete_property(name)
+                result["deleted"].append(name)
+            except Exception as e:
+                result["errors"].append({"name": name, "error": str(e)})
+        return result
+
+    def bulk_delete_individuals(self, names: List[str]) -> Dict[str, Any]:
+        """Batch delete individuals. Returns {deleted: [], errors: []}."""
+        result: Dict[str, Any] = {"deleted": [], "errors": []}
+        for name in names:
+            try:
+                self.delete_individual(name)
+                result["deleted"].append(name)
+            except Exception as e:
+                result["errors"].append({"name": name, "error": str(e)})
+        return result
+
     def bulk_update_annotations(self, updates: List[Dict[str, str]]) -> Dict[str, Any]:
         """Apply batch annotation changes.
 

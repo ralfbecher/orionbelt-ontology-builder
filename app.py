@@ -397,7 +397,7 @@ def render_classes():
     classes = ont.get_classes()
     class_names = [c["name"] for c in classes]
 
-    tab1, tab2, tab3, tab4 = st.tabs(["View Classes", "Add Class", "Edit/Delete Class", "Bulk Add"])
+    tab1, tab2, tab3, tab4 = st.tabs(["View Classes", "Add Class", "Edit/Delete Class", "Bulk Operations"])
 
     with tab1:
         if not classes:
@@ -607,28 +607,83 @@ def render_classes():
                         st.caption("No usages found.")
 
     with tab4:
-        st.subheader("Bulk Add Classes")
-        st.caption("Enter one class name per line, or use CSV format: Name, Label, Parent")
-        bulk_text = st.text_area("Class entries", height=200, key="bulk_classes_text",
-                                 placeholder="Dog\nCat\nBird\n\nor CSV:\nName, Label, Parent\nDog, A Dog, Animal\nCat, A Cat, Animal")
+        import pandas as pd
+        bulk_op = st.radio("Operation", ["Add", "Edit", "Delete"], horizontal=True, key="bulk_class_op")
 
-        if bulk_text:
-            entries = ont.parse_bulk_text(bulk_text)
-            if entries:
-                import pandas as pd
-                st.dataframe(pd.DataFrame(entries), width="stretch")
-                if st.button("Create All Classes", type="primary", key="bulk_create_classes"):
-                    result = ont.bulk_add_classes(entries)
-                    save_checkpoint("Bulk add classes")
-                    parts = []
-                    if result["created"]:
-                        parts.append(f"Created {len(result['created'])} class(es)")
-                    if result["skipped"]:
-                        parts.append(f"Skipped {len(result['skipped'])} existing")
-                    if result["errors"]:
-                        parts.append(f"{len(result['errors'])} error(s)")
-                    show_message(". ".join(parts), "success" if result["created"] else "warning")
-                    st.rerun()
+        if bulk_op == "Add":
+            st.subheader("Bulk Add Classes")
+            st.caption("Enter one class name per line, or use CSV format: Name, Label, Parent")
+            bulk_text = st.text_area("Class entries", height=200, key="bulk_classes_text",
+                                     placeholder="Dog\nCat\nBird\n\nor CSV:\nName, Label, Parent\nDog, A Dog, Animal\nCat, A Cat, Animal")
+            if bulk_text:
+                entries = ont.parse_bulk_text(bulk_text)
+                if entries:
+                    st.dataframe(pd.DataFrame(entries), width="stretch")
+                    if st.button("Create All Classes", type="primary", key="bulk_create_classes"):
+                        result = ont.bulk_add_classes(entries)
+                        save_checkpoint("Bulk add classes")
+                        parts = []
+                        if result["created"]:
+                            parts.append(f"Created {len(result['created'])} class(es)")
+                        if result["skipped"]:
+                            parts.append(f"Skipped {len(result['skipped'])} existing")
+                        if result["errors"]:
+                            parts.append(f"{len(result['errors'])} error(s)")
+                        show_message(". ".join(parts), "success" if result["created"] else "warning")
+                        st.rerun()
+
+        elif bulk_op == "Edit":
+            st.subheader("Bulk Edit Classes")
+            st.caption("Edit class labels and comments in a spreadsheet.")
+            if not classes:
+                st.info("No classes to edit.")
+            else:
+                edit_data = [{"Name": c["name"], "Label": c.get("label") or "",
+                              "Comment": c.get("comment") or "",
+                              "Parent": c["parents"][0] if c.get("parents") else ""}
+                             for c in classes]
+                df = pd.DataFrame(edit_data)
+                edited_df = st.data_editor(df, key="bulk_edit_classes_editor", width="stretch",
+                                           disabled=["Name"])
+                if st.button("Apply Changes", type="primary", key="bulk_apply_classes"):
+                    changes = 0
+                    for _, row in edited_df.iterrows():
+                        orig = next((c for c in classes if c["name"] == row["Name"]), None)
+                        if not orig:
+                            continue
+                        new_label = row["Label"] if row["Label"] != (orig.get("label") or "") else None
+                        new_comment = row["Comment"] if row["Comment"] != (orig.get("comment") or "") else None
+                        old_parent = orig["parents"][0] if orig.get("parents") else ""
+                        new_parent = row["Parent"]
+                        if new_label is not None or new_comment is not None or new_parent != old_parent:
+                            ont.update_class(
+                                row["Name"],
+                                new_label=row["Label"] if new_label is not None else None,
+                                new_comment=row["Comment"] if new_comment is not None else None,
+                                remove_parent=old_parent if old_parent and new_parent != old_parent else None,
+                                new_parent=new_parent if new_parent and new_parent != old_parent else None,
+                            )
+                            changes += 1
+                    if changes:
+                        save_checkpoint("Bulk edit classes")
+                        show_message(f"Updated {changes} class(es)", "success")
+                        st.rerun()
+                    else:
+                        show_message("No changes detected.", "info")
+
+        else:  # Delete
+            st.subheader("Bulk Delete Classes")
+            if not classes:
+                st.info("No classes to delete.")
+            else:
+                selected = st.multiselect("Select classes to delete", class_names, key="bulk_delete_classes_select")
+                if selected:
+                    st.warning(f"This will delete {len(selected)} class(es) and all their references.")
+                    if st.button("Delete Selected", type="primary", key="bulk_delete_classes_btn"):
+                        result = ont.bulk_delete_classes(selected)
+                        save_checkpoint("Bulk delete classes")
+                        show_message(f"Deleted {len(result['deleted'])} class(es)", "success")
+                        st.rerun()
 
 
 def render_properties():
@@ -645,7 +700,7 @@ def render_properties():
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Object Properties", "Data Properties",
-        "Add Object Property", "Add Data Property", "Bulk Add"
+        "Add Object Property", "Add Data Property", "Bulk Operations"
     ])
 
     with tab1:
@@ -963,30 +1018,81 @@ def render_properties():
                     st.rerun()
 
     with tab5:
-        st.subheader("Bulk Add Properties")
-        prop_type = st.radio("Property Type", ["Object Property", "Data Property"],
-                             horizontal=True, key="bulk_prop_type")
-        st.caption("Enter one property per line, or CSV: Name, Domain, Range, Label")
-        bulk_text = st.text_area("Property entries", height=200, key="bulk_props_text",
-                                 placeholder="hasFriend\nhasEnemy\n\nor CSV:\nName, Domain, Range, Label\nhasFriend, Person, Person, has friend")
-        if bulk_text:
-            entries = ont.parse_bulk_text(bulk_text)
-            if entries:
-                import pandas as pd
-                st.dataframe(pd.DataFrame(entries), width="stretch")
-                ptype = "object" if prop_type == "Object Property" else "data"
-                if st.button("Create All Properties", type="primary", key="bulk_create_props"):
-                    result = ont.bulk_add_properties(entries, property_type=ptype)
-                    save_checkpoint("Bulk add properties")
-                    parts = []
-                    if result["created"]:
-                        parts.append(f"Created {len(result['created'])} propert(ies)")
-                    if result["skipped"]:
-                        parts.append(f"Skipped {len(result['skipped'])} existing")
-                    if result["errors"]:
-                        parts.append(f"{len(result['errors'])} error(s)")
-                    show_message(". ".join(parts), "success" if result["created"] else "warning")
-                    st.rerun()
+        import pandas as pd
+        bulk_op = st.radio("Operation", ["Add", "Edit", "Delete"], horizontal=True, key="bulk_prop_op")
+
+        if bulk_op == "Add":
+            st.subheader("Bulk Add Properties")
+            prop_type = st.radio("Property Type", ["Object Property", "Data Property"],
+                                 horizontal=True, key="bulk_prop_type")
+            st.caption("Enter one property per line, or CSV: Name, Domain, Range, Label")
+            bulk_text = st.text_area("Property entries", height=200, key="bulk_props_text",
+                                     placeholder="hasFriend\nhasEnemy\n\nor CSV:\nName, Domain, Range, Label\nhasFriend, Person, Person, has friend")
+            if bulk_text:
+                entries = ont.parse_bulk_text(bulk_text)
+                if entries:
+                    st.dataframe(pd.DataFrame(entries), width="stretch")
+                    ptype = "object" if prop_type == "Object Property" else "data"
+                    if st.button("Create All Properties", type="primary", key="bulk_create_props"):
+                        result = ont.bulk_add_properties(entries, property_type=ptype)
+                        save_checkpoint("Bulk add properties")
+                        parts = []
+                        if result["created"]:
+                            parts.append(f"Created {len(result['created'])} propert(ies)")
+                        if result["skipped"]:
+                            parts.append(f"Skipped {len(result['skipped'])} existing")
+                        if result["errors"]:
+                            parts.append(f"{len(result['errors'])} error(s)")
+                        show_message(". ".join(parts), "success" if result["created"] else "warning")
+                        st.rerun()
+
+        elif bulk_op == "Edit":
+            st.subheader("Bulk Edit Properties")
+            st.caption("Edit property labels in a spreadsheet.")
+            all_props = object_props + data_props
+            if not all_props:
+                st.info("No properties to edit.")
+            else:
+                edit_data = [{"Name": p["name"], "Label": p.get("label") or "",
+                              "Type": "Object" if p in object_props else "Data",
+                              "Domain": p.get("domain") or "",
+                              "Range": p.get("range") or ""}
+                             for p in all_props]
+                df = pd.DataFrame(edit_data)
+                edited_df = st.data_editor(df, key="bulk_edit_props_editor", width="stretch",
+                                           disabled=["Name", "Type"])
+                if st.button("Apply Changes", type="primary", key="bulk_apply_props"):
+                    changes = 0
+                    for _, row in edited_df.iterrows():
+                        orig = next((p for p in all_props if p["name"] == row["Name"]), None)
+                        if not orig:
+                            continue
+                        new_label = row["Label"]
+                        old_label = orig.get("label") or ""
+                        if new_label != old_label:
+                            ont.update_property(row["Name"], new_label=new_label)
+                            changes += 1
+                    if changes:
+                        save_checkpoint("Bulk edit properties")
+                        show_message(f"Updated {changes} propert(ies)", "success")
+                        st.rerun()
+                    else:
+                        show_message("No changes detected.", "info")
+
+        else:  # Delete
+            st.subheader("Bulk Delete Properties")
+            all_prop_names = obj_prop_names + data_prop_names
+            if not all_prop_names:
+                st.info("No properties to delete.")
+            else:
+                selected = st.multiselect("Select properties to delete", all_prop_names, key="bulk_delete_props_select")
+                if selected:
+                    st.warning(f"This will delete {len(selected)} propert(ies) and all their references.")
+                    if st.button("Delete Selected", type="primary", key="bulk_delete_props_btn"):
+                        result = ont.bulk_delete_properties(selected)
+                        save_checkpoint("Bulk delete properties")
+                        show_message(f"Deleted {len(result['deleted'])} propert(ies)", "success")
+                        st.rerun()
 
 
 def render_individuals():
@@ -1001,7 +1107,7 @@ def render_individuals():
     object_props = ont.get_object_properties()
     data_props = ont.get_data_properties()
 
-    tab1, tab2, tab3, tab4 = st.tabs(["View Individuals", "Add Individual", "Add Property Value", "Bulk Add"])
+    tab1, tab2, tab3, tab4 = st.tabs(["View Individuals", "Add Individual", "Add Property Value", "Bulk Operations"])
 
     with tab1:
         if not individuals:
@@ -1181,27 +1287,74 @@ def render_individuals():
                         st.rerun()
 
     with tab4:
-        st.subheader("Bulk Add Individuals")
-        st.caption("Enter one individual per line (Name, Class) or CSV: Name, Class, Label")
-        bulk_text = st.text_area("Individual entries", height=200, key="bulk_individuals_text",
-                                 placeholder="Name, Class, Label\nalice, Person, Alice\nbob, Person, Bob")
-        if bulk_text:
-            entries = ont.parse_bulk_text(bulk_text)
-            if entries:
-                import pandas as pd
-                st.dataframe(pd.DataFrame(entries), width="stretch")
-                if st.button("Create All Individuals", type="primary", key="bulk_create_individuals"):
-                    result = ont.bulk_add_individuals(entries)
-                    save_checkpoint("Bulk add individuals")
-                    parts = []
-                    if result["created"]:
-                        parts.append(f"Created {len(result['created'])} individual(s)")
-                    if result["skipped"]:
-                        parts.append(f"Skipped {len(result['skipped'])} existing")
-                    if result["errors"]:
-                        parts.append(f"{len(result['errors'])} error(s)")
-                    show_message(". ".join(parts), "success" if result["created"] else "warning")
-                    st.rerun()
+        import pandas as pd
+        bulk_op = st.radio("Operation", ["Add", "Edit", "Delete"], horizontal=True, key="bulk_ind_op")
+
+        if bulk_op == "Add":
+            st.subheader("Bulk Add Individuals")
+            st.caption("Enter one individual per line (Name, Class) or CSV: Name, Class, Label")
+            bulk_text = st.text_area("Individual entries", height=200, key="bulk_individuals_text",
+                                     placeholder="Name, Class, Label\nalice, Person, Alice\nbob, Person, Bob")
+            if bulk_text:
+                entries = ont.parse_bulk_text(bulk_text)
+                if entries:
+                    st.dataframe(pd.DataFrame(entries), width="stretch")
+                    if st.button("Create All Individuals", type="primary", key="bulk_create_individuals"):
+                        result = ont.bulk_add_individuals(entries)
+                        save_checkpoint("Bulk add individuals")
+                        parts = []
+                        if result["created"]:
+                            parts.append(f"Created {len(result['created'])} individual(s)")
+                        if result["skipped"]:
+                            parts.append(f"Skipped {len(result['skipped'])} existing")
+                        if result["errors"]:
+                            parts.append(f"{len(result['errors'])} error(s)")
+                        show_message(". ".join(parts), "success" if result["created"] else "warning")
+                        st.rerun()
+
+        elif bulk_op == "Edit":
+            st.subheader("Bulk Edit Individuals")
+            st.caption("Edit individual labels in a spreadsheet.")
+            if not individuals:
+                st.info("No individuals to edit.")
+            else:
+                edit_data = [{"Name": i["name"], "Label": i.get("label") or "",
+                              "Class": ", ".join(i.get("classes", []))}
+                             for i in individuals]
+                df = pd.DataFrame(edit_data)
+                edited_df = st.data_editor(df, key="bulk_edit_ind_editor", width="stretch",
+                                           disabled=["Name", "Class"])
+                if st.button("Apply Changes", type="primary", key="bulk_apply_ind"):
+                    changes = 0
+                    for _, row in edited_df.iterrows():
+                        orig = next((i for i in individuals if i["name"] == row["Name"]), None)
+                        if not orig:
+                            continue
+                        new_label = row["Label"]
+                        old_label = orig.get("label") or ""
+                        if new_label != old_label:
+                            ont.update_individual(row["Name"], new_label=new_label)
+                            changes += 1
+                    if changes:
+                        save_checkpoint("Bulk edit individuals")
+                        show_message(f"Updated {changes} individual(s)", "success")
+                        st.rerun()
+                    else:
+                        show_message("No changes detected.", "info")
+
+        else:  # Delete
+            st.subheader("Bulk Delete Individuals")
+            if not individuals:
+                st.info("No individuals to delete.")
+            else:
+                selected = st.multiselect("Select individuals to delete", ind_names, key="bulk_delete_ind_select")
+                if selected:
+                    st.warning(f"This will delete {len(selected)} individual(s) and all their references.")
+                    if st.button("Delete Selected", type="primary", key="bulk_delete_ind_btn"):
+                        result = ont.bulk_delete_individuals(selected)
+                        save_checkpoint("Bulk delete individuals")
+                        show_message(f"Deleted {len(result['deleted'])} individual(s)", "success")
+                        st.rerun()
 
 
 def render_restrictions():
