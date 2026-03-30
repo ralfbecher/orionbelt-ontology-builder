@@ -23,6 +23,8 @@
 
 OrionBelt lets you build, edit, and maintain OWL ontologies and SKOS vocabularies in your browser. No Java, no desktop install - just `pip install` and go.
 
+It works with **OWL ontologies** (classes as `owl:Class`, properties as `owl:ObjectProperty` / `owl:DatatypeProperty`). Pure RDFS vocabularies like Schema.org that use `rdfs:Class` and `rdf:Property` are not supported.
+
 It's not trying to be Protégé. It's meant for people who want something lighter: a workbench that's easy to pick up, hard to break things with, and good enough for real ontology work.
 
 ## What it's good at

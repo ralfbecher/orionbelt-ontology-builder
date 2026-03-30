@@ -18,7 +18,6 @@ SAMPLE_FILES = {
     "prov-o": ("prov-o.ttl", "turtle", "https://www.w3.org/ns/prov-o"),
     "goodrelations": ("goodrelations.owl", "xml", "http://purl.org/goodrelations/v1.owl"),
     "dcterms": ("dcterms.ttl", "turtle", "https://www.dublincore.org/specifications/dublin-core/dcmi-terms/dublin_core_terms.ttl"),
-    "schema-org": ("schema-org.ttl", "turtle", "https://schema.org/version/latest/schemaorg-current-https.ttl"),
     "unesco": ("unesco-thesaurus.ttl", "turtle", "https://vocabularies.unesco.org/exports/thesaurus/latest/unesco-thesaurus.ttl"),
 }
 
@@ -84,10 +83,6 @@ class TestSampleImport:
         obj_props = om.get_object_properties()
         data_props = om.get_data_properties()
         assert len(obj_props) + len(data_props) >= 10
-
-    def test_schema_org_is_large(self):
-        om = _load("schema-org")
-        assert len(om.graph) > 5000
 
     def test_unesco_has_skos_concepts(self):
         om = _load("unesco")
@@ -213,7 +208,7 @@ class TestSampleHierarchy:
 class TestSampleStatistics:
     """Test statistics on real ontologies."""
 
-    @pytest.mark.parametrize("name", ["pizza", "wine", "schema-org"])
+    @pytest.mark.parametrize("name", ["pizza", "wine", "goodrelations"])
     def test_get_statistics(self, name):
         om = _load(name)
         stats = om.get_statistics()

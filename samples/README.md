@@ -15,12 +15,11 @@ Real-world ontologies for testing and demonstration.
 
 ## Large files (not in repo)
 
-Download these separately if needed:
+Download separately if needed:
 
 ```bash
-# Schema.org (~1.1 MB, 800+ classes)
-curl -sL -o samples/schema-org.ttl "https://schema.org/version/latest/schemaorg-current-https.ttl"
-
-# UNESCO Thesaurus (~3 MB, 4000+ SKOS concepts)
+# UNESCO Thesaurus (~3 MB, 4000+ SKOS concepts - great for testing SKOS Vocabulary page)
 curl -sL -o samples/unesco-thesaurus.ttl "https://vocabularies.unesco.org/exports/thesaurus/latest/unesco-thesaurus.ttl"
 ```
+
+**Note:** Schema.org uses `rdfs:Class` / `rdf:Property` instead of OWL types, so it won't show classes or properties in OrionBelt.
