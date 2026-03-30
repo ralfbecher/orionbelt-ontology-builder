@@ -2,7 +2,24 @@
 name = "orionbelt-ontology-builder"
 version = "0.9.0"
 description = "A Streamlit application for building, editing, and managing OWL ontologies"
+readme = "README.md"
+license = {text = "BSL-1.1"}
 requires-python = ">=3.10"
+authors = [{name = "Ralf Becher, RALFORION d.o.o.", email = "ralf.becher@web.de"}]
+keywords = ["ontology", "owl", "rdf", "rdflib", "streamlit", "semantic-web", "knowledge-graph"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "streamlit>=1.28.0",
     "rdflib>=7.0.0",
@@ -17,10 +34,25 @@ dev = [
     "pytest-cov>=4.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/ralfbecher/orionbelt-ontology-builder"
+Repository = "https://github.com/ralfbecher/orionbelt-ontology-builder"
+Issues = "https://github.com/ralfbecher/orionbelt-ontology-builder/issues"
+Demo = "https://orionbelt.streamlit.app"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
 
 [build-system]
 requires = ["setuptools>=68.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["app", "ontology_manager"]
+
+[tool.setuptools.package-data]
+"*" = [
+    "lib/**/*",
+    "docs/assets/*",
+]
