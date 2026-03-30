@@ -2704,7 +2704,7 @@ def render_visualization():
         # Graph options - row 2: layout controls
         col1, col2, col3 = st.columns([1, 2, 1])
         with col1:
-            height = st.slider("Graph Height", 400, 1200, 700, step=100)
+            height = st.slider("Graph Height", 300, 1200, 500, step=100)
         with col2:
             node_spacing = st.slider(
                 "Node Spacing",
