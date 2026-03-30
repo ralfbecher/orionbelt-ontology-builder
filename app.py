@@ -1605,6 +1605,24 @@ def render_import_export():
         if "import_format" not in st.session_state:
             st.session_state.import_format = None
 
+        # Check if ontology is empty (only default scaffolding, no user content)
+        _stats = ont.get_statistics()
+        _ont_is_empty = (_stats["classes"] == 0 and _stats["object_properties"] == 0
+                         and _stats["data_properties"] == 0 and _stats["individuals"] == 0)
+
+        def _direct_import(content, format_):
+            """Import directly without preview (for empty ontologies)."""
+            try:
+                ont.load_from_string(content, format=format_)
+                st.session_state.ontology = ont
+                save_checkpoint("Import ontology")
+                set_flash_message(
+                    f"Ontology imported successfully! ({len(ont.graph)} triples)", "success"
+                )
+                st.rerun()
+            except Exception as e:
+                show_message(f"Error importing ontology: {str(e)}", "error")
+
         # Step 1: Source selection (only when no preview active)
         if st.session_state.import_preview is None:
             import_method = st.radio("Import Method", ["Upload File", "Paste Content"])
@@ -1630,14 +1648,18 @@ def render_import_export():
                     ext = uploaded_file.name.split(".")[-1].lower()
                     format_ = format_map.get(ext, "turtle")
 
-                    if st.button("Preview Import"):
+                    btn_label = "Import" if _ont_is_empty else "Preview Import"
+                    if st.button(btn_label):
                         try:
                             content = uploaded_file.read().decode("utf-8")
-                            preview = ont.preview_import(content, format=format_)
-                            st.session_state.import_preview = preview
-                            st.session_state.import_content = content
-                            st.session_state.import_format = format_
-                            st.rerun()
+                            if _ont_is_empty:
+                                _direct_import(content, format_)
+                            else:
+                                preview = ont.preview_import(content, format=format_)
+                                st.session_state.import_preview = preview
+                                st.session_state.import_content = content
+                                st.session_state.import_format = format_
+                                st.rerun()
                         except Exception as e:
                             show_message(f"Error parsing file: {str(e)}", "error")
 
@@ -1645,16 +1667,20 @@ def render_import_export():
                 content = st.text_area("Paste Ontology Content", height=300)
                 format_ = st.selectbox("Format", ["turtle", "xml", "n3", "nt", "json-ld"])
 
-                if st.button("Preview Import"):
+                btn_label = "Import" if _ont_is_empty else "Preview Import"
+                if st.button(btn_label):
                     if not content:
                         show_message("Please paste ontology content!", "error")
                     else:
                         try:
-                            preview = ont.preview_import(content, format=format_)
-                            st.session_state.import_preview = preview
-                            st.session_state.import_content = content
-                            st.session_state.import_format = format_
-                            st.rerun()
+                            if _ont_is_empty:
+                                _direct_import(content, format_)
+                            else:
+                                preview = ont.preview_import(content, format=format_)
+                                st.session_state.import_preview = preview
+                                st.session_state.import_content = content
+                                st.session_state.import_format = format_
+                                st.rerun()
                         except Exception as e:
                             show_message(f"Error parsing content: {str(e)}", "error")
 
