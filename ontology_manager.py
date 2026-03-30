@@ -10,6 +10,11 @@ import owlrl
 
 _UNSET = object()  # sentinel: "parameter not provided"
 
+# Import strategies
+IMPORT_REPLACE = "replace"
+IMPORT_MERGE = "merge"
+IMPORT_MERGE_OVERWRITE = "merge_overwrite"
+
 
 class OntologyManager:
     """Manages OWL ontology operations including CRUD for classes, properties, individuals, and restrictions."""
@@ -102,12 +107,67 @@ class OntologyManager:
         """Get all owl:imports URIs."""
         return [str(o) for o in self.graph.objects(self.ontology_uri, OWL.imports)]
 
+    # Standard prefixes that cannot be removed
+    STANDARD_PREFIXES = {"owl", "rdf", "rdfs", "xsd", "skos", "dc", "dcterms"}
+
     def get_prefixes(self) -> List[Dict[str, str]]:
-        """Get namespace prefixes that were explicitly defined (stored during load)."""
+        """Get namespace prefixes from the graph bindings and loaded declarations."""
+        prefixes = []
+        seen = set()
+        # Include all graph namespace bindings
+        for prefix, ns in self.graph.namespaces():
+            display = prefix if prefix else "(default)"
+            if display not in seen:
+                seen.add(display)
+                prefixes.append({"prefix": display, "namespace": str(ns)})
+        # Include loaded prefixes not yet in graph
         if hasattr(self, '_loaded_prefixes') and self._loaded_prefixes:
-            return self._loaded_prefixes
-        # Fallback: return default namespace only
-        return [{"prefix": "(default)", "namespace": self.base_uri}]
+            for p in self._loaded_prefixes:
+                if p["prefix"] not in seen:
+                    seen.add(p["prefix"])
+                    prefixes.append(p)
+        # Ensure at least the default namespace
+        if "(default)" not in seen:
+            prefixes.append({"prefix": "(default)", "namespace": self.base_uri})
+        prefixes.sort(key=lambda x: ("" if x["prefix"] == "(default)" else x["prefix"]))
+        return prefixes
+
+    def get_all_prefixes(self) -> List[Dict[str, str]]:
+        """Get all namespace prefix bindings with source classification."""
+        prefixes = []
+        for prefix, ns in self.graph.namespaces():
+            display = prefix if prefix else "(default)"
+            if prefix in self.STANDARD_PREFIXES:
+                source = "standard"
+            elif display == "(default)":
+                source = "default"
+            else:
+                source = "custom"
+            prefixes.append({
+                "prefix": display,
+                "namespace": str(ns),
+                "source": source,
+            })
+        prefixes.sort(key=lambda x: ("" if x["prefix"] == "(default)" else x["prefix"]))
+        return prefixes
+
+    def add_prefix(self, prefix: str, namespace: str):
+        """Bind a custom prefix to a namespace URI in the graph."""
+        self.graph.bind(prefix, Namespace(namespace), override=True)
+
+    def remove_prefix(self, prefix: str):
+        """Remove a custom prefix binding. Standard prefixes cannot be removed."""
+        if prefix in self.STANDARD_PREFIXES:
+            raise ValueError(f"Cannot remove standard prefix '{prefix}'")
+        # rdflib NamespaceManager doesn't support unbinding directly.
+        # Rebuild the namespace manager by creating a new graph with the same triples.
+        keep = [(p, ns) for p, ns in self.graph.namespaces() if p != prefix]
+        new_graph = Graph()
+        for s, p_triple, o in self.graph:
+            new_graph.add((s, p_triple, o))
+        for p, ns in keep:
+            new_graph.bind(p, ns, override=True)
+        self.graph = new_graph
 
     def _extract_prefixes_from_ttl(self, data: str) -> List[Dict[str, str]]:
         """Extract @prefix declarations from TTL content."""
@@ -123,6 +183,38 @@ class OntologyManager:
                 "namespace": namespace
             })
         # Sort by prefix name, with default first
+        prefixes.sort(key=lambda x: ("" if x["prefix"] == "(default)" else x["prefix"]))
+        return prefixes
+
+    def _extract_prefixes_from_jsonld(self, data: str) -> List[Dict[str, str]]:
+        """Extract prefix declarations from JSON-LD @context."""
+        import json
+        prefixes = []
+        try:
+            doc = json.loads(data)
+        except (json.JSONDecodeError, TypeError):
+            return prefixes
+        # JSON-LD can be a dict or a list (expanded form has no @context)
+        if isinstance(doc, list):
+            return prefixes
+        context = doc.get("@context", {})
+        if isinstance(context, list):
+            # Merge multiple context objects
+            merged = {}
+            for item in context:
+                if isinstance(item, dict):
+                    merged.update(item)
+            context = merged
+        if isinstance(context, dict):
+            for key, value in context.items():
+                if key.startswith("@"):
+                    continue
+                if isinstance(value, str) and (value.startswith("http://") or
+                                                value.startswith("https://")):
+                    prefixes.append({
+                        "prefix": key if key else "(default)",
+                        "namespace": value,
+                    })
         prefixes.sort(key=lambda x: ("" if x["prefix"] == "(default)" else x["prefix"]))
         return prefixes
 
@@ -1320,11 +1412,12 @@ class OntologyManager:
 
     def load_from_file(self, file_path: str, format: str = "turtle"):
         """Load ontology from a file."""
-        # Read file content to extract prefixes if TTL format
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
         if format == "turtle":
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
             self._loaded_prefixes = self._extract_prefixes_from_ttl(content)
+        elif format == "json-ld":
+            self._loaded_prefixes = self._extract_prefixes_from_jsonld(content)
         else:
             self._loaded_prefixes = []
         self.graph = Graph()
@@ -1333,14 +1426,185 @@ class OntologyManager:
 
     def load_from_string(self, data: str, format: str = "turtle"):
         """Load ontology from a string."""
-        # Extract prefixes if TTL format
         if format == "turtle":
             self._loaded_prefixes = self._extract_prefixes_from_ttl(data)
+        elif format == "json-ld":
+            self._loaded_prefixes = self._extract_prefixes_from_jsonld(data)
         else:
             self._loaded_prefixes = []
         self.graph = Graph()
         self.graph.parse(data=data, format=format)
         self._update_namespace_from_graph()
+
+    def preview_import(self, data: str, format: str = "turtle") -> Dict[str, Any]:
+        """Parse import data and return a preview without modifying the current graph.
+
+        Returns a dict with:
+          - diff: output from compare_graphs
+          - incoming_stats: statistics of the parsed graph
+          - conflicts: list of detected conflicts (for merge modes)
+          - prefix_conflicts: list of prefix/namespace mismatches
+        """
+        temp = Graph()
+        temp.parse(data=data, format=format)
+
+        diff = self.compare_graphs(temp)
+        conflicts = self.detect_conflicts(temp)
+        prefix_conflicts = self._detect_prefix_conflicts(temp)
+
+        # Compute incoming stats
+        incoming_stats = {
+            "classes": sum(1 for _ in temp.subjects(RDF.type, OWL.Class)),
+            "object_properties": sum(1 for _ in temp.subjects(RDF.type, OWL.ObjectProperty)),
+            "data_properties": sum(1 for _ in temp.subjects(RDF.type, OWL.DatatypeProperty)),
+            "individuals": sum(1 for _ in temp.subjects(RDF.type, OWL.NamedIndividual)),
+            "total_triples": len(temp),
+        }
+
+        return {
+            "diff": diff,
+            "incoming_stats": incoming_stats,
+            "conflicts": conflicts,
+            "prefix_conflicts": prefix_conflicts,
+        }
+
+    def detect_conflicts(self, other_graph: Graph) -> List[Dict[str, Any]]:
+        """Detect conflicts between current graph and another graph.
+
+        A conflict exists when both graphs have triples with the same subject
+        and predicate but different object values, for predicates where multiple
+        values are semantically problematic.
+        """
+        conflict_preds = {
+            RDFS.label, RDFS.domain, RDFS.range, RDFS.comment,
+            OWL.versionIRI, DCTERMS.creator,
+        }
+
+        conflicts = []
+        for s, p, o in other_graph:
+            if not isinstance(s, URIRef) or p not in conflict_preds:
+                continue
+            current_values = set(self.graph.objects(s, p))
+            if not current_values:
+                continue
+            incoming_value = o
+            if incoming_value not in current_values:
+                conflicts.append({
+                    "subject": self._local_name(s),
+                    "predicate": self._local_name(p),
+                    "current_values": [
+                        self._local_name(v) if isinstance(v, URIRef) else str(v)
+                        for v in current_values
+                    ],
+                    "incoming_value": (
+                        self._local_name(incoming_value)
+                        if isinstance(incoming_value, URIRef) else str(incoming_value)
+                    ),
+                })
+
+        # Deduplicate (same subject+predicate can appear multiple times)
+        seen = set()
+        unique = []
+        for c in conflicts:
+            key = (c["subject"], c["predicate"])
+            if key not in seen:
+                seen.add(key)
+                unique.append(c)
+        return unique
+
+    def merge_from_graph(self, other_graph: Graph,
+                         strategy: str = IMPORT_MERGE) -> Dict[str, Any]:
+        """Merge another graph into the current graph using the specified strategy.
+
+        Returns a dict with:
+          - triples_before: int
+          - triples_after: int
+          - triples_added: int
+          - triples_removed: int
+          - conflicts_resolved: int
+        """
+        triples_before = len(self.graph)
+
+        if strategy == IMPORT_REPLACE:
+            self.graph = Graph()
+            for s, p, o in other_graph:
+                self.graph.add((s, p, o))
+            self._update_namespace_from_graph()
+            # Copy namespace bindings
+            for prefix, ns in other_graph.namespaces():
+                self.graph.bind(prefix, ns, override=False)
+
+        elif strategy == IMPORT_MERGE:
+            for s, p, o in other_graph:
+                self.graph.add((s, p, o))
+            self._reconcile_prefixes_after_merge(other_graph)
+
+        elif strategy == IMPORT_MERGE_OVERWRITE:
+            # For conflict predicates: remove current, add incoming
+            conflict_preds = {
+                RDFS.label, RDFS.domain, RDFS.range, RDFS.comment,
+                OWL.versionIRI, DCTERMS.creator,
+            }
+            conflicts_resolved = 0
+            for s, p, o in other_graph:
+                if isinstance(s, URIRef) and p in conflict_preds:
+                    current_values = set(self.graph.objects(s, p))
+                    if current_values and o not in current_values:
+                        for cv in current_values:
+                            self.graph.remove((s, p, cv))
+                        conflicts_resolved += 1
+                self.graph.add((s, p, o))
+            self._reconcile_prefixes_after_merge(other_graph)
+
+            triples_after = len(self.graph)
+            return {
+                "triples_before": triples_before,
+                "triples_after": triples_after,
+                "triples_added": max(0, triples_after - triples_before),
+                "triples_removed": max(0, triples_before - triples_after),
+                "conflicts_resolved": conflicts_resolved,
+            }
+
+        triples_after = len(self.graph)
+        return {
+            "triples_before": triples_before,
+            "triples_after": triples_after,
+            "triples_added": max(0, triples_after - triples_before),
+            "triples_removed": max(0, triples_before - triples_after),
+            "conflicts_resolved": 0,
+        }
+
+    def merge_from_string(self, data: str, format: str = "turtle",
+                          strategy: str = IMPORT_MERGE) -> Dict[str, Any]:
+        """Parse data and merge into current graph."""
+        temp = Graph()
+        temp.parse(data=data, format=format)
+        return self.merge_from_graph(temp, strategy=strategy)
+
+    def _detect_prefix_conflicts(self, other_graph: Graph) -> List[Dict[str, str]]:
+        """Compare namespace bindings between current and incoming graph."""
+        current_ns = {prefix: str(ns) for prefix, ns in self.graph.namespaces()}
+        conflicts = []
+        for prefix, ns in other_graph.namespaces():
+            ns_str = str(ns)
+            if prefix in current_ns and current_ns[prefix] != ns_str:
+                conflicts.append({
+                    "prefix": prefix,
+                    "current_namespace": current_ns[prefix],
+                    "incoming_namespace": ns_str,
+                })
+        return conflicts
+
+    def _reconcile_prefixes_after_merge(self, other_graph: Graph,
+                                         prefix_resolution: Dict[str, str] = None):
+        """Re-bind prefixes after a merge operation."""
+        for prefix, ns in other_graph.namespaces():
+            if prefix_resolution and prefix in prefix_resolution:
+                self.graph.bind(prefix, Namespace(prefix_resolution[prefix]),
+                                override=True)
+            else:
+                # Current bindings take precedence
+                self.graph.bind(prefix, ns, override=False)
 
     def _update_namespace_from_graph(self):
         """Update namespace based on loaded ontology."""
@@ -1549,6 +1813,229 @@ class OntologyManager:
         self.graph = Graph()
         self.graph.parse(data=snapshot.decode("utf-8"), format="nt")
         self._update_namespace_from_graph()
+
+    # ==================== DIFF & COMPARISON ====================
+
+    def compare_graphs(self, other_graph: Graph) -> Dict[str, Any]:
+        """Compare the current graph against another graph.
+
+        Returns a dict with:
+          - added_triples: list of (s, p, o) string tuples present in other but not self
+          - removed_triples: list of (s, p, o) string tuples present in self but not other
+          - modified_resources: list of dicts grouping changes by subject
+          - summary: list of plain-language change descriptions
+          - stats: dict with counts (added, removed, modified, unchanged)
+        """
+        # Compute triple-level diffs using rdflib graph subtraction
+        added_set = set(other_graph) - set(self.graph)
+        removed_set = set(self.graph) - set(other_graph)
+
+        # Filter out BNode-rooted triples for display (count them separately)
+        bnode_added = {t for t in added_set if isinstance(t[0], BNode)}
+        bnode_removed = {t for t in removed_set if isinstance(t[0], BNode)}
+        named_added = added_set - bnode_added
+        named_removed = removed_set - bnode_removed
+
+        # Group changes by subject
+        added_by_subj = self._group_triples_by_subject(named_added)
+        removed_by_subj = self._group_triples_by_subject(named_removed)
+
+        # Classify each changed subject
+        all_subjects = set(added_by_subj.keys()) | set(removed_by_subj.keys())
+        modified_resources = []
+        counts = {"added": 0, "removed": 0, "modified": 0}
+
+        for subj in sorted(all_subjects):
+            change_type = self._classify_resource_change(
+                subj, set(added_by_subj.keys()), set(removed_by_subj.keys())
+            )
+            counts[change_type] = counts.get(change_type, 0) + 1
+            modified_resources.append({
+                "name": subj,
+                "change_type": change_type,
+                "added_triples": added_by_subj.get(subj, []),
+                "removed_triples": removed_by_subj.get(subj, []),
+            })
+
+        # Build string representations for triple lists
+        added_triples = [
+            (self._local_name(s) if isinstance(s, URIRef) else str(s),
+             self._local_name(p),
+             self._local_name(o) if isinstance(o, URIRef) else str(o))
+            for s, p, o in named_added
+        ]
+        removed_triples = [
+            (self._local_name(s) if isinstance(s, URIRef) else str(s),
+             self._local_name(p),
+             self._local_name(o) if isinstance(o, URIRef) else str(o))
+            for s, p, o in named_removed
+        ]
+
+        unchanged_count = len(set(self.graph) & set(other_graph))
+
+        diff = {
+            "added_triples": sorted(added_triples),
+            "removed_triples": sorted(removed_triples),
+            "modified_resources": modified_resources,
+            "stats": {
+                "added": len(named_added),
+                "removed": len(named_removed),
+                "bnode_added": len(bnode_added),
+                "bnode_removed": len(bnode_removed),
+                "resources_added": counts["added"],
+                "resources_removed": counts["removed"],
+                "resources_modified": counts["modified"],
+                "unchanged": unchanged_count,
+            },
+            "summary": [],
+        }
+        diff["summary"] = self._summarize_changes(diff)
+        return diff
+
+    def compare_to_string(self, data: str, format: str = "turtle") -> Dict[str, Any]:
+        """Parse data into a temporary graph and compare to current state."""
+        temp = Graph()
+        temp.parse(data=data, format=format)
+        return self.compare_graphs(temp)
+
+    def _group_triples_by_subject(self, triples) -> Dict[str, List[Dict]]:
+        """Group a set of triples by subject local name for display."""
+        groups: Dict[str, List[Dict]] = {}
+        for s, p, o in triples:
+            if isinstance(s, BNode):
+                continue
+            name = self._local_name(s) if isinstance(s, URIRef) else str(s)
+            if name not in groups:
+                groups[name] = []
+            groups[name].append({
+                "predicate": self._local_name(p),
+                "object": self._local_name(o) if isinstance(o, URIRef) else str(o),
+                "object_type": "uri" if isinstance(o, URIRef) else "literal",
+            })
+        return groups
+
+    def _classify_resource_change(self, subject: str,
+                                   added_subjects: Set[str],
+                                   removed_subjects: Set[str]) -> str:
+        """Classify what happened to a resource: 'added', 'removed', or 'modified'."""
+        in_added = subject in added_subjects
+        in_removed = subject in removed_subjects
+        if in_added and not in_removed:
+            return "added"
+        if in_removed and not in_added:
+            return "removed"
+        return "modified"
+
+    def _summarize_changes(self, diff: Dict[str, Any]) -> List[str]:
+        """Generate plain-language summaries for each changed resource."""
+        summaries = []
+        type_preds = {str(RDF.type)}
+
+        for res in diff["modified_resources"]:
+            name = res["name"]
+            change = res["change_type"]
+
+            # Determine the resource type from added or removed triples
+            res_type = ""
+            all_triples = res["added_triples"] + res["removed_triples"]
+            for t in all_triples:
+                if t["predicate"] == "type":
+                    obj = t["object"]
+                    if obj in ("Class", "ObjectProperty", "DatatypeProperty",
+                               "NamedIndividual", "Ontology", "AnnotationProperty",
+                               "Restriction"):
+                        res_type = obj
+                        break
+
+            type_label = {
+                "Class": "class",
+                "ObjectProperty": "object property",
+                "DatatypeProperty": "data property",
+                "NamedIndividual": "individual",
+                "Ontology": "ontology",
+                "AnnotationProperty": "annotation property",
+            }.get(res_type, "resource")
+
+            if change == "added":
+                label = ""
+                for t in res["added_triples"]:
+                    if t["predicate"] == "label":
+                        label = f' "{t["object"]}"'
+                        break
+                summaries.append(f"Added {type_label} {name}{label}")
+            elif change == "removed":
+                summaries.append(f"Removed {type_label} {name}")
+            else:
+                details = []
+                for t in res["added_triples"]:
+                    if t["predicate"] != "type":
+                        details.append(f"added {t['predicate']} = {t['object']}")
+                for t in res["removed_triples"]:
+                    if t["predicate"] != "type":
+                        details.append(f"removed {t['predicate']} = {t['object']}")
+                detail_str = "; ".join(details[:3])
+                if len(details) > 3:
+                    detail_str += f" (+{len(details) - 3} more)"
+                summaries.append(f"Modified {type_label} {name}: {detail_str}")
+
+        # Add BNode summary if any
+        stats = diff["stats"]
+        bnode_total = stats["bnode_added"] + stats["bnode_removed"]
+        if bnode_total > 0:
+            summaries.append(
+                f"{stats['bnode_added']} anonymous node triples added, "
+                f"{stats['bnode_removed']} removed (restrictions/expressions)"
+            )
+
+        return summaries
+
+    def format_diff_report(self, diff: Dict[str, Any],
+                           report_format: str = "markdown") -> str:
+        """Format a diff result as a human-readable report."""
+        stats = diff["stats"]
+        lines = []
+
+        if report_format == "markdown":
+            lines.append("# Ontology Change Report\n")
+            lines.append("## Summary\n")
+            lines.append(f"- **Added:** {stats['added']} triples across "
+                         f"{stats['resources_added']} resources")
+            lines.append(f"- **Removed:** {stats['removed']} triples across "
+                         f"{stats['resources_removed']} resources")
+            lines.append(f"- **Modified:** {stats['resources_modified']} resources")
+            lines.append(f"- **Unchanged:** {stats['unchanged']} triples")
+            if stats["bnode_added"] or stats["bnode_removed"]:
+                lines.append(f"- **Anonymous nodes:** {stats['bnode_added']} added, "
+                             f"{stats['bnode_removed']} removed")
+            lines.append("")
+
+            # Group resources by change type
+            for change_type, heading in [("added", "Added Resources"),
+                                          ("removed", "Removed Resources"),
+                                          ("modified", "Modified Resources")]:
+                resources = [r for r in diff["modified_resources"]
+                             if r["change_type"] == change_type]
+                if resources:
+                    lines.append(f"## {heading}\n")
+                    for res in resources:
+                        lines.append(f"### {res['name']}\n")
+                        for t in res["added_triples"]:
+                            lines.append(f"- + {t['predicate']}: {t['object']}")
+                        for t in res["removed_triples"]:
+                            lines.append(f"- - {t['predicate']}: {t['object']}")
+                        lines.append("")
+        else:
+            # Plain text format
+            lines.append("Ontology Change Report")
+            lines.append("=" * 40)
+            lines.append(f"Added: {stats['added']} triples, "
+                         f"Removed: {stats['removed']} triples, "
+                         f"Modified: {stats['resources_modified']} resources")
+            lines.append("")
+            for line in diff["summary"]:
+                lines.append(f"  {line}")
+
+        return "\n".join(lines)
 
     # ==================== VALIDATION & REASONING ====================
 

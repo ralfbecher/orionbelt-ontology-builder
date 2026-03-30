@@ -292,16 +292,49 @@ def render_dashboard():
 
     # Prefixes section
     st.subheader("Namespace Prefixes")
-    prefixes = ont.get_prefixes()
+    all_prefixes = ont.get_all_prefixes()
 
-    if prefixes:
-        prefix_data = {"Prefix": [], "Namespace": []}
-        for p in prefixes:
+    if all_prefixes:
+        prefix_data = {"Prefix": [], "Namespace": [], "Source": []}
+        for p in all_prefixes:
             prefix_data["Prefix"].append(p["prefix"])
             prefix_data["Namespace"].append(p["namespace"])
-        st.dataframe(prefix_data, width="stretch", hide_index=True)
+            prefix_data["Source"].append(p["source"])
+        st.dataframe(prefix_data, use_container_width=True, hide_index=True)
     else:
         st.info("No prefixes defined.")
+
+    with st.expander("Add Custom Prefix"):
+        col_pfx, col_ns = st.columns(2)
+        with col_pfx:
+            new_prefix = st.text_input("Prefix", placeholder="foaf", key="new_prefix_name")
+        with col_ns:
+            new_ns = st.text_input("Namespace URI",
+                                   placeholder="http://xmlns.com/foaf/0.1/",
+                                   key="new_prefix_ns")
+        if st.button("Add Prefix", key="add_prefix_btn"):
+            if new_prefix and new_ns:
+                ont.add_prefix(new_prefix, new_ns)
+                save_checkpoint("Add prefix")
+                set_flash_message(f"Added prefix '{new_prefix}'", "success")
+                st.rerun()
+            else:
+                show_message("Both prefix and namespace URI are required.", "warning")
+
+    # Show remove buttons for custom prefixes
+    custom_pfx = [p for p in all_prefixes if p["source"] == "custom"]
+    if custom_pfx:
+        st.caption("Remove custom prefixes:")
+        for p in custom_pfx:
+            col_name, col_rm = st.columns([4, 1])
+            with col_name:
+                st.text(f"{p['prefix']}: {p['namespace']}")
+            with col_rm:
+                if st.button("Remove", key=f"rm_pfx_{p['prefix']}"):
+                    ont.remove_prefix(p["prefix"])
+                    save_checkpoint("Remove prefix")
+                    set_flash_message(f"Removed prefix '{p['prefix']}'", "success")
+                    st.rerun()
 
     st.divider()
 
@@ -1564,54 +1597,202 @@ def render_import_export():
     with tab1:
         st.subheader("Import Ontology")
 
-        import_method = st.radio("Import Method", ["Upload File", "Paste Content"])
+        # Initialize import preview state
+        if "import_preview" not in st.session_state:
+            st.session_state.import_preview = None
+        if "import_content" not in st.session_state:
+            st.session_state.import_content = None
+        if "import_format" not in st.session_state:
+            st.session_state.import_format = None
 
-        if import_method == "Upload File":
-            uploaded_file = st.file_uploader(
-                "Choose an ontology file",
-                type=["ttl", "owl", "rdf", "xml", "n3", "nt"],
-                help="Supported formats: Turtle (.ttl), RDF/XML (.owl, .rdf, .xml), N3 (.n3), N-Triples (.nt)"
+        # Step 1: Source selection (only when no preview active)
+        if st.session_state.import_preview is None:
+            import_method = st.radio("Import Method", ["Upload File", "Paste Content"])
+
+            if import_method == "Upload File":
+                uploaded_file = st.file_uploader(
+                    "Choose an ontology file",
+                    type=["ttl", "owl", "rdf", "xml", "n3", "nt", "jsonld", "json"],
+                    help="Supported formats: Turtle (.ttl), RDF/XML (.owl, .rdf, .xml), N3 (.n3), N-Triples (.nt), JSON-LD (.jsonld, .json)"
+                )
+
+                if uploaded_file:
+                    format_map = {
+                        "ttl": "turtle",
+                        "owl": "xml",
+                        "rdf": "xml",
+                        "xml": "xml",
+                        "n3": "n3",
+                        "nt": "nt",
+                        "jsonld": "json-ld",
+                        "json": "json-ld",
+                    }
+                    ext = uploaded_file.name.split(".")[-1].lower()
+                    format_ = format_map.get(ext, "turtle")
+
+                    if st.button("Preview Import"):
+                        try:
+                            content = uploaded_file.read().decode("utf-8")
+                            preview = ont.preview_import(content, format=format_)
+                            st.session_state.import_preview = preview
+                            st.session_state.import_content = content
+                            st.session_state.import_format = format_
+                            st.rerun()
+                        except Exception as e:
+                            show_message(f"Error parsing file: {str(e)}", "error")
+
+            else:
+                content = st.text_area("Paste Ontology Content", height=300)
+                format_ = st.selectbox("Format", ["turtle", "xml", "n3", "nt", "json-ld"])
+
+                if st.button("Preview Import"):
+                    if not content:
+                        show_message("Please paste ontology content!", "error")
+                    else:
+                        try:
+                            preview = ont.preview_import(content, format=format_)
+                            st.session_state.import_preview = preview
+                            st.session_state.import_content = content
+                            st.session_state.import_format = format_
+                            st.rerun()
+                        except Exception as e:
+                            show_message(f"Error parsing content: {str(e)}", "error")
+
+        # Step 2: Review panel
+        else:
+            preview = st.session_state.import_preview
+            diff = preview["diff"]
+            diff_stats = diff["stats"]
+
+            st.info("Review the import changes below, then choose an import mode and apply.")
+
+            # Import mode selector
+            from ontology_manager import IMPORT_REPLACE, IMPORT_MERGE, IMPORT_MERGE_OVERWRITE
+            strategy = st.radio(
+                "Import Mode",
+                ["Replace", "Merge", "Merge (Overwrite)"],
+                captions=[
+                    "Replace current ontology with imported content",
+                    "Add imported content to current ontology (keep both)",
+                    "Add imported content, overwrite conflicts with imported values",
+                ],
+                key="import_strategy_radio",
+            )
+            strategy_map = {
+                "Replace": IMPORT_REPLACE,
+                "Merge": IMPORT_MERGE,
+                "Merge (Overwrite)": IMPORT_MERGE_OVERWRITE,
+            }
+            selected_strategy = strategy_map[strategy]
+
+            # Statistics comparison
+            st.subheader("Statistics Comparison")
+            current_stats = ont.get_statistics()
+            incoming_stats = preview["incoming_stats"]
+
+            col_cur, col_inc = st.columns(2)
+            with col_cur:
+                st.caption("Current Ontology")
+                st.metric("Classes", current_stats["classes"])
+                st.metric("Object Properties", current_stats["object_properties"])
+                st.metric("Data Properties", current_stats["data_properties"])
+                st.metric("Individuals", current_stats["individuals"])
+                st.metric("Total Triples", current_stats["total_triples"])
+            with col_inc:
+                st.caption("Incoming Content")
+                st.metric("Classes", incoming_stats["classes"])
+                st.metric("Object Properties", incoming_stats["object_properties"])
+                st.metric("Data Properties", incoming_stats["data_properties"])
+                st.metric("Individuals", incoming_stats["individuals"])
+                st.metric("Total Triples", incoming_stats["total_triples"])
+
+            # Diff summary
+            with st.expander(
+                f"Changes: {diff_stats['added']} triples added, "
+                f"{diff_stats['removed']} removed, "
+                f"{diff_stats['resources_modified']} resources modified",
+                expanded=True,
+            ):
+                if diff["summary"]:
+                    for line in diff["summary"]:
+                        # Color-code by change type
+                        if line.startswith("Added"):
+                            st.markdown(f":green[{line}]")
+                        elif line.startswith("Removed"):
+                            st.markdown(f":red[{line}]")
+                        elif line.startswith("Modified"):
+                            st.markdown(f":orange[{line}]")
+                        else:
+                            st.write(line)
+                else:
+                    st.write("No changes detected.")
+
+            # Conflicts (for merge modes)
+            if selected_strategy != IMPORT_REPLACE:
+                conflicts = preview.get("conflicts", [])
+                if conflicts:
+                    st.warning(f"{len(conflicts)} conflict(s) detected")
+                    conflict_data = {
+                        "Subject": [c["subject"] for c in conflicts],
+                        "Predicate": [c["predicate"] for c in conflicts],
+                        "Current Value": [", ".join(c["current_values"]) for c in conflicts],
+                        "Incoming Value": [c["incoming_value"] for c in conflicts],
+                    }
+                    st.dataframe(conflict_data, use_container_width=True, hide_index=True)
+
+            # Prefix conflicts
+            prefix_conflicts = preview.get("prefix_conflicts", [])
+            if prefix_conflicts:
+                with st.expander(f"Prefix Changes ({len(prefix_conflicts)} conflicts)"):
+                    pfx_data = {
+                        "Prefix": [c["prefix"] for c in prefix_conflicts],
+                        "Current Namespace": [c["current_namespace"] for c in prefix_conflicts],
+                        "Incoming Namespace": [c["incoming_namespace"] for c in prefix_conflicts],
+                    }
+                    st.dataframe(pfx_data, use_container_width=True, hide_index=True)
+
+            # Change report download
+            report = ont.format_diff_report(diff, report_format="markdown")
+            st.download_button(
+                "Download Change Report",
+                data=report,
+                file_name="change_report.md",
+                mime="text/markdown",
             )
 
-            if uploaded_file:
-                format_map = {
-                    "ttl": "turtle",
-                    "owl": "xml",
-                    "rdf": "xml",
-                    "xml": "xml",
-                    "n3": "n3",
-                    "nt": "nt"
-                }
-                ext = uploaded_file.name.split(".")[-1].lower()
-                format_ = format_map.get(ext, "turtle")
-
-                if st.button("Import"):
+            # Step 3: Apply / Cancel
+            col_apply, col_cancel = st.columns(2)
+            with col_apply:
+                if st.button("Apply Import", type="primary", use_container_width=True):
                     try:
-                        content = uploaded_file.read().decode("utf-8")
-                        ont.load_from_string(content, format=format_)
+                        content = st.session_state.import_content
+                        format_ = st.session_state.import_format
+                        if selected_strategy == IMPORT_REPLACE:
+                            ont.load_from_string(content, format=format_)
+                        else:
+                            result = ont.merge_from_string(
+                                content, format=format_, strategy=selected_strategy
+                            )
                         st.session_state.ontology = ont
                         save_checkpoint("Import ontology")
-                        set_flash_message(f"Ontology imported successfully! ({len(ont.graph)} triples)", "success")
+                        # Clear preview state
+                        st.session_state.import_preview = None
+                        st.session_state.import_content = None
+                        st.session_state.import_format = None
+                        triples = len(ont.graph)
+                        set_flash_message(
+                            f"Ontology imported successfully! ({triples} triples)",
+                            "success",
+                        )
                         st.rerun()
                     except Exception as e:
-                        show_message(f"Error importing ontology: {str(e)}", "error")
-
-        else:
-            content = st.text_area("Paste Ontology Content (Turtle format)", height=300)
-            format_ = st.selectbox("Format", ["turtle", "xml", "n3", "nt"])
-
-            if st.button("Import from Content"):
-                if not content:
-                    show_message("Please paste ontology content!", "error")
-                else:
-                    try:
-                        ont.load_from_string(content, format=format_)
-                        st.session_state.ontology = ont
-                        save_checkpoint("Import ontology")
-                        set_flash_message(f"Ontology imported successfully! ({len(ont.graph)} triples)", "success")
-                        st.rerun()
-                    except Exception as e:
-                        show_message(f"Error importing ontology: {str(e)}", "error")
+                        show_message(f"Error applying import: {str(e)}", "error")
+            with col_cancel:
+                if st.button("Cancel", use_container_width=True):
+                    st.session_state.import_preview = None
+                    st.session_state.import_content = None
+                    st.session_state.import_format = None
+                    st.rerun()
 
     with tab2:
         st.subheader("Export Ontology")
