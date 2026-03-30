@@ -6,7 +6,7 @@ and managing OWL ontologies.
 import streamlit as st
 import json
 
-APP_VERSION = "0.8.0"
+APP_VERSION = "0.9.0"
 
 # Page configuration
 st.set_page_config(
