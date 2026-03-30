@@ -6,16 +6,31 @@
 html, body { margin: 0; padding: 0; overflow: hidden; background: #fff; }
 #graph { width: 100%; }
 #legend {
-    position: absolute; top: 8px; left: 8px; background: rgba(255,255,255,0.9);
-    padding: 6px 12px; border-radius: 6px; font-size: 14px; color: #333;
-    pointer-events: none; white-space: nowrap; z-index: 10;
+    position: absolute; top: 8px; left: 8px; background: rgba(255,255,255,0.92);
+    padding: 8px 12px; border-radius: 6px; font-size: 12px; color: #333;
+    pointer-events: none; z-index: 10; line-height: 1.8;
 }
+#legend .row { white-space: nowrap; }
+#legend .line { display: inline-block; width: 20px; height: 2px; vertical-align: middle; margin-right: 2px; }
+#legend .line.dashed { border-top: 2px dashed; height: 0; }
+#legend .line.solid { border-top: 2px solid; height: 0; }
 </style>
 </head>
 <body>
 <div style="position: relative;">
     <div id="graph"></div>
-    <div id="legend">&#x1f7e2; Classes  &#x1f535; Obj Props  &#x1f7e3; Data Props  &#x1f7e0; Individuals  &#x1f7e4; Annotations</div>
+    <div id="legend">
+        <div class="row">&#x1f7e2; Classes  &#x1f535; Obj Props  &#x1f7e3; Data Props  &#x1f7e0; Individuals  &#x1f7e4; Annotations</div>
+        <div class="row">
+            <span class="line solid" style="border-color:#81C784;"></span> subClassOf &nbsp;
+            <span class="line solid" style="border-color:#2196F3;"></span> Object Prop &nbsp;
+            <span class="line dashed" style="border-color:#CE93D8;"></span> Data Prop &nbsp;
+            <span class="line solid" style="border-color:#FFB74D;"></span> type &nbsp;
+            <span class="line solid" style="border-color:#9C27B0;"></span> equivalent &nbsp;
+            <span class="line solid" style="border-color:#F44336;"></span> disjoint &nbsp;
+            <span class="line dashed" style="border-color:#A1887F;"></span> annotation
+        </div>
+    </div>
 </div>
 <script>
 // Streamlit component communication
