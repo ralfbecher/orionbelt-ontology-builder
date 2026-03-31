@@ -17,6 +17,7 @@ SAMPLE_FILES = {
     "wine": ("wine.owl", "xml", "https://www.w3.org/TR/owl-guide/wine.rdf"),
     "prov-o": ("prov-o.ttl", "turtle", "https://www.w3.org/ns/prov-o"),
     "goodrelations": ("goodrelations.owl", "xml", "http://purl.org/goodrelations/v1.owl"),
+    "geography": ("geography-thesaurus.ttl", "turtle", None),
 }
 
 
@@ -39,6 +40,8 @@ def _load(name):
     filename, fmt, url = SAMPLE_FILES[name]
     path = os.path.join(SAMPLES_DIR, filename)
     if not os.path.exists(path):
+        if url is None:
+            pytest.skip(f"Local sample {filename} not found")
         _download(filename, url)
     om = OntologyManager()
     om.load_from_file(path, fmt)
@@ -82,10 +85,10 @@ class TestSampleImport:
         data_props = om.get_data_properties()
         assert len(obj_props) + len(data_props) >= 10
 
-    def test_unesco_has_skos_concepts(self):
-        om = _load("unesco")
+    def test_geography_has_skos_concepts(self):
+        om = _load("geography")
         concepts = om.get_concepts()
-        assert len(concepts) > 100
+        assert len(concepts) > 50
 
 
 # ---------- Validation ----------
@@ -104,8 +107,8 @@ class TestSampleValidation:
             assert "type" in issue
             assert "message" in issue
 
-    def test_unesco_skos_validation(self):
-        om = _load("unesco")
+    def test_geography_skos_validation(self):
+        om = _load("geography")
         issues = om.validate_skos()
         assert isinstance(issues, list)
 
@@ -195,10 +198,10 @@ class TestSampleHierarchy:
         hierarchy = om.get_class_hierarchy()
         assert len(hierarchy) > 10
 
-    def test_unesco_concept_hierarchy(self):
-        om = _load("unesco")
+    def test_geography_concept_hierarchy(self):
+        om = _load("geography")
         hierarchy = om.get_concept_hierarchy()
-        assert len(hierarchy) > 50
+        assert len(hierarchy) > 20
 
 
 # ---------- Statistics ----------

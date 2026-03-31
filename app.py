@@ -5,8 +5,12 @@ and managing OWL ontologies.
 
 import streamlit as st
 import json
+import traceback
+from datetime import datetime
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
+
+GITHUB_ISSUES_URL = "https://github.com/ralfbecher/orionbelt-ontology-builder/issues"
 
 # Page configuration
 st.set_page_config(
@@ -94,6 +98,8 @@ def init_session_state():
         st.session_state.messages = []
     if "flash_message" not in st.session_state:
         st.session_state.flash_message = None
+    if "error_log" not in st.session_state:
+        st.session_state.error_log = []
     # On first run with empty ontology, start on Import/Export page
     if "initial_nav_set" not in st.session_state:
         st.session_state.initial_nav_set = True
@@ -107,6 +113,17 @@ def save_checkpoint(label: str = "Edit"):
     """Save a snapshot to the undo history after a mutation."""
     if st.session_state.get("undo_manager"):
         st.session_state.undo_manager.checkpoint(label)
+
+
+def log_error(error: Exception, context: str = ""):
+    """Log a runtime error to session state for display."""
+    entry = {
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "context": context,
+        "error": str(error),
+        "traceback": traceback.format_exc(),
+    }
+    st.session_state.error_log.append(entry)
 
 
 def show_message(message: str, type: str = "info"):
@@ -3254,7 +3271,13 @@ def main():
     st.sidebar.image("docs/assets/ORIONBELT_Logo.png", width=200)
     st.sidebar.markdown("# Ontology Builder")
     st.sidebar.markdown("\u00a9 2025 [RALFORION d.o.o.](https://ralforion.com)")
-    st.sidebar.caption(f"v{APP_VERSION}")
+    _gh_repo = GITHUB_ISSUES_URL.rsplit("/", 1)[0]
+    st.sidebar.markdown(
+        f'<small>v{APP_VERSION} · '
+        f'<a href="{_gh_repo}" title="GitHub"><svg height="13" width="13" viewBox="0 0 16 16" style="vertical-align:middle;fill:currentColor;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a> · '
+        f'<a href="{GITHUB_ISSUES_URL}/new">Report Issue</a></small>',
+        unsafe_allow_html=True,
+    )
 
     pages = {
         "Dashboard": render_dashboard,
@@ -3379,7 +3402,27 @@ def main():
     st.caption(f"**{ont_label}** — {ont_uri}")
 
     # Render selected page
-    pages[selection]()
+    try:
+        pages[selection]()
+    except Exception as e:
+        log_error(e, context=f"Page: {selection}")
+        st.error(f"An error occurred: {e}")
+        st.caption(f"[Report this issue on GitHub]({GITHUB_ISSUES_URL}/new)")
+
+    # Sidebar: error log and GitHub link
+    st.sidebar.divider()
+    error_log = st.session_state.error_log
+    if error_log:
+        with st.sidebar.expander(f"Errors ({len(error_log)})", expanded=False):
+            for i, entry in enumerate(reversed(error_log)):
+                st.markdown(f"**{entry['time']}** — {entry['context']}")
+                st.code(entry['error'], language=None)
+                with st.expander("Traceback", expanded=False):
+                    st.code(entry['traceback'], language="python")
+            if st.button("Clear errors", key="btn_clear_errors"):
+                st.session_state.error_log = []
+                st.rerun()
+            st.markdown(f"[Report on GitHub]({GITHUB_ISSUES_URL}/new)")
 
 
 if __name__ == "__main__":
