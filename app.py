@@ -3251,7 +3251,7 @@ def main():
     init_session_state()
 
     # Sidebar navigation
-    st.sidebar.image("docs/assets/ORIONBELT Logo.png", width=200)
+    st.sidebar.image("docs/assets/ORIONBELT_Logo.png", width=200)
     st.sidebar.markdown("# Ontology Builder")
     st.sidebar.markdown("\u00a9 2025 [RALFORION d.o.o.](https://ralforion.com)")
     st.sidebar.caption(f"v{APP_VERSION}")
