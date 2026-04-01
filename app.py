@@ -391,7 +391,7 @@ def render_dashboard():
 
     with col1:
         if st.button("🔍 Validate Ontology", type="primary"):
-            issues = ont.validate()
+            issues = ont.validate(check_missing_domain_range=False)
             st.session_state.validation_results = issues
 
     with col2:
@@ -447,7 +447,7 @@ def render_classes():
                 display_name = format_label_name(cls['name'], cls.get('label'))
                 _cls_expanded = st.session_state.get(f"view_class_{cls['name']}", False) or st.session_state.get(f"edit_class_{cls['name']}", False)
                 with st.expander(f"📦 **{display_name}**", expanded=_cls_expanded):
-                    st.write(f"**URI:** {cls['uri']}")
+                    st.write(f"**URI:** `{cls['uri']}`" if cls['uri'].startswith("http://example.org/") else f"**URI:** {cls['uri']}")
 
                     btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
                     with btn_view:
@@ -761,7 +761,7 @@ def render_properties():
             for prop in filtered_obj_props:
                 _op_expanded = st.session_state.get(f"view_objprop_{prop['name']}", False) or st.session_state.get(f"edit_objprop_{prop['name']}", False)
                 with st.expander(f"🔗 **{prop['name']}** ({prop['domain'] or '?'} → {prop['range'] or '?'})", expanded=_op_expanded):
-                    st.write(f"**URI:** {prop['uri']}")
+                    st.write(f"**URI:** `{prop['uri']}`" if prop['uri'].startswith("http://example.org/") else f"**URI:** {prop['uri']}")
 
                     btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
                     with btn_view:
@@ -872,7 +872,7 @@ def render_properties():
             for prop in filtered_data_props:
                 _dp_expanded = st.session_state.get(f"view_dataprop_{prop['name']}", False) or st.session_state.get(f"edit_dataprop_{prop['name']}", False)
                 with st.expander(f"📝 **{prop['name']}** ({prop['domain'] or '?'} → {prop['range']})", expanded=_dp_expanded):
-                    st.write(f"**URI:** {prop['uri']}")
+                    st.write(f"**URI:** `{prop['uri']}`" if prop['uri'].startswith("http://example.org/") else f"**URI:** {prop['uri']}")
 
                     btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
                     with btn_view:
@@ -1152,7 +1152,7 @@ def render_individuals():
                 classes_str = ", ".join(ind["classes"]) if ind["classes"] else "No class"
                 _ind_expanded = st.session_state.get(f"view_ind_{ind['name']}", False) or st.session_state.get(f"edit_ind_{ind['name']}", False)
                 with st.expander(f"👤 **{ind['name']}** ({classes_str})", expanded=_ind_expanded):
-                    st.write(f"**URI:** {ind['uri']}")
+                    st.write(f"**URI:** `{ind['uri']}`" if ind['uri'].startswith("http://example.org/") else f"**URI:** {ind['uri']}")
 
                     btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
                     with btn_view:
@@ -1917,7 +1917,7 @@ def render_skos_vocabulary():
             for scheme in schemes:
                 display_name = format_label_name(scheme['name'], scheme.get('label'))
                 with st.expander(f"📚 **{display_name}** ({scheme['concept_count']} concepts)"):
-                    st.write(f"**URI:** {scheme['uri']}")
+                    st.write(f"**URI:** `{scheme['uri']}`" if scheme['uri'].startswith("http://example.org/") else f"**URI:** {scheme['uri']}")
                     st.write(f"**Label:** {scheme['label'] or '—'}")
                     st.write(f"**Comment:** {scheme['comment'] or '—'}")
                     if st.button("🗑️ Delete", key=f"del_scheme_{scheme['name']}"):
@@ -1975,7 +1975,7 @@ def render_skos_vocabulary():
                 badge_str = f" — {'; '.join(badges)}" if badges else ""
 
                 with st.expander(f"🏷️ **{pref}** ({concept['name']}){badge_str}"):
-                    st.write(f"**URI:** {concept['uri']}")
+                    st.write(f"**URI:** `{concept['uri']}`" if concept['uri'].startswith("http://example.org/") else f"**URI:** {concept['uri']}")
                     st.write(f"**prefLabel:** {concept['prefLabel'] or '—'}")
                     st.write(f"**definition:** {concept['definition'] or '—'}")
                     if concept['altLabels']:
@@ -2651,8 +2651,14 @@ def render_validation():
     with tab1:
         st.subheader("Ontology Validation")
 
+        check_domain_range = st.checkbox(
+            "Check for missing domain/range",
+            value=False,
+            help="Report properties without rdfs:domain/rdfs:range (or schema:domainIncludes/gist:domainIncludes). Off by default since many ontologies intentionally omit these."
+        )
+
         if st.button("Run Validation"):
-            issues = ont.validate()
+            issues = ont.validate(check_missing_domain_range=check_domain_range)
 
             if not issues:
                 show_message("No issues found! The ontology looks good.", "success")
@@ -3399,7 +3405,18 @@ def main():
         parts = [p for p in ont_uri.rstrip("#/").split("/") if p and ":" not in p]
         name_parts = [p for p in parts if not re.match(r'^v?\d+[\d.]*$', p)]
         ont_label = name_parts[-1] if name_parts else (parts[-1] if parts else ont_uri)
-    st.caption(f"**{ont_label}** — {ont_uri}")
+    if ont_uri.startswith("http://example.org/"):
+        st.markdown(
+            f'<p style="color:gray;font-size:0.9rem;margin:0"><b>{ont_label}</b> — '
+            f'{ont_uri.replace("http://", "http&#58;//")}</p>',
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            f'<p style="color:gray;font-size:0.9rem;margin:0"><b>{ont_label}</b> — '
+            f'<a href="{ont_uri}" target="_blank" style="color:gray">{ont_uri}</a></p>',
+            unsafe_allow_html=True
+        )
 
     # Render selected page
     try:

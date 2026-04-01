@@ -15,11 +15,54 @@ def test_no_warning_when_label_present(om):
     assert not any(i["type"] == "missing_label" and i["subject"] == "Labeled" for i in issues)
 
 
+def test_no_warning_when_skos_preflabel_present(om):
+    """Classes with skos:prefLabel should not trigger missing label warning (issue #1)."""
+    from rdflib import Literal
+    from rdflib.namespace import SKOS
+    om.add_class("SKOSLabeled")
+    class_uri = om.namespace["SKOSLabeled"]
+    om.graph.add((class_uri, SKOS.prefLabel, Literal("SKOS Labeled")))
+    issues = om.validate()
+    assert not any(i["type"] == "missing_label" and i["subject"] == "SKOSLabeled" for i in issues)
+
+
 def test_missing_domain_range(om):
     om.add_object_property("orphanProp")
     issues = om.validate()
     assert any(i["type"] == "missing_domain" and i["subject"] == "orphanProp" for i in issues)
     assert any(i["type"] == "missing_range" and i["subject"] == "orphanProp" for i in issues)
+
+
+def test_no_missing_domain_when_domain_includes_present(om):
+    """Properties with schema:domainIncludes or gist:domainIncludes should not warn (issue #2)."""
+    from rdflib import URIRef, Literal
+    from ontology_manager import _SCHEMA, _GIST
+    om.add_class("Person")
+    om.add_object_property("schemaProp")
+    om.add_object_property("gistProp")
+    prop1 = om.namespace["schemaProp"]
+    prop2 = om.namespace["gistProp"]
+    om.graph.add((prop1, _SCHEMA.domainIncludes, om.namespace["Person"]))
+    om.graph.add((prop2, _GIST.domainIncludes, om.namespace["Person"]))
+    issues = om.validate()
+    assert not any(i["type"] == "missing_domain" and i["subject"] == "schemaProp" for i in issues)
+    assert not any(i["type"] == "missing_domain" and i["subject"] == "gistProp" for i in issues)
+
+
+def test_no_missing_range_when_range_includes_present(om):
+    """Properties with schema:rangeIncludes or gist:rangeIncludes should not warn (issue #2)."""
+    from rdflib import URIRef, Literal
+    from ontology_manager import _SCHEMA, _GIST
+    om.add_class("Person")
+    om.add_object_property("schemaProp", domain="Person")
+    om.add_object_property("gistProp", domain="Person")
+    prop1 = om.namespace["schemaProp"]
+    prop2 = om.namespace["gistProp"]
+    om.graph.add((prop1, _SCHEMA.rangeIncludes, om.namespace["Person"]))
+    om.graph.add((prop2, _GIST.rangeIncludes, om.namespace["Person"]))
+    issues = om.validate()
+    assert not any(i["type"] == "missing_range" and i["subject"] == "schemaProp" for i in issues)
+    assert not any(i["type"] == "missing_range" and i["subject"] == "gistProp" for i in issues)
 
 
 def test_untyped_individual(om):

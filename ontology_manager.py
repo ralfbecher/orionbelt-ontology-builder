@@ -10,6 +10,12 @@ import owlrl
 
 _UNSET = object()  # sentinel: "parameter not provided"
 
+# domainIncludes/rangeIncludes from Schema.org and gist
+_SCHEMA = Namespace("https://schema.org/")
+_GIST = Namespace("https://w3id.org/semanticarts/ns/ontology/gist/")
+_DOMAIN_INCLUDES = (_SCHEMA.domainIncludes, _GIST.domainIncludes)
+_RANGE_INCLUDES = (_SCHEMA.rangeIncludes, _GIST.rangeIncludes)
+
 # Import strategies
 IMPORT_REPLACE = "replace"
 IMPORT_MERGE = "merge"
@@ -2547,7 +2553,7 @@ class OntologyManager:
 
     # ==================== VALIDATION & REASONING ====================
 
-    def validate(self) -> List[Dict[str, str]]:
+    def validate(self, check_missing_domain_range: bool = True) -> List[Dict[str, str]]:
         """Validate the ontology and return issues."""
         issues = []
 
@@ -2555,43 +2561,55 @@ class OntologyManager:
         for class_uri in self.graph.subjects(RDF.type, OWL.Class):
             if isinstance(class_uri, BNode):
                 continue
-            if not self.graph.value(class_uri, RDFS.label):
+            if not self.graph.value(class_uri, RDFS.label) and not self.graph.value(class_uri, SKOS.prefLabel):
                 issues.append({
                     "severity": "warning",
                     "type": "missing_label",
                     "subject": self._local_name(class_uri),
-                    "message": f"Class '{self._local_name(class_uri)}' has no label"
+                    "message": f"Class '{self._local_name(class_uri)}' has no label (rdfs:label or skos:prefLabel)"
                 })
 
         # Check for properties without domain/range
-        for prop_uri in self.graph.subjects(RDF.type, OWL.ObjectProperty):
-            if isinstance(prop_uri, BNode):
-                continue
-            if not self.graph.value(prop_uri, RDFS.domain):
-                issues.append({
-                    "severity": "info",
-                    "type": "missing_domain",
-                    "subject": self._local_name(prop_uri),
-                    "message": f"Object property '{self._local_name(prop_uri)}' has no domain"
-                })
-            if not self.graph.value(prop_uri, RDFS.range):
-                issues.append({
-                    "severity": "info",
-                    "type": "missing_range",
-                    "subject": self._local_name(prop_uri),
-                    "message": f"Object property '{self._local_name(prop_uri)}' has no range"
-                })
+        # Also accept schema:domainIncludes / gist:domainIncludes (and rangeIncludes)
+        def _has_domain(uri):
+            if self.graph.value(uri, RDFS.domain):
+                return True
+            return any(self.graph.value(uri, p) for p in _DOMAIN_INCLUDES)
 
-        for prop_uri in self.graph.subjects(RDF.type, OWL.DatatypeProperty):
-            if isinstance(prop_uri, BNode):
-                continue
-            if not self.graph.value(prop_uri, RDFS.domain):
-                issues.append({
-                    "severity": "info",
-                    "type": "missing_domain",
-                    "subject": self._local_name(prop_uri),
-                    "message": f"Data property '{self._local_name(prop_uri)}' has no domain"
-                })
+        def _has_range(uri):
+            if self.graph.value(uri, RDFS.range):
+                return True
+            return any(self.graph.value(uri, p) for p in _RANGE_INCLUDES)
+
+        if check_missing_domain_range:
+            for prop_uri in self.graph.subjects(RDF.type, OWL.ObjectProperty):
+                if isinstance(prop_uri, BNode):
+                    continue
+                if not _has_domain(prop_uri):
+                    issues.append({
+                        "severity": "info",
+                        "type": "missing_domain",
+                        "subject": self._local_name(prop_uri),
+                        "message": f"Object property '{self._local_name(prop_uri)}' has no domain"
+                    })
+                if not _has_range(prop_uri):
+                    issues.append({
+                        "severity": "info",
+                        "type": "missing_range",
+                        "subject": self._local_name(prop_uri),
+                        "message": f"Object property '{self._local_name(prop_uri)}' has no range"
+                    })
+
+            for prop_uri in self.graph.subjects(RDF.type, OWL.DatatypeProperty):
+                if isinstance(prop_uri, BNode):
+                    continue
+                if not _has_domain(prop_uri):
+                    issues.append({
+                        "severity": "info",
+                        "type": "missing_domain",
+                        "subject": self._local_name(prop_uri),
+                        "message": f"Data property '{self._local_name(prop_uri)}' has no domain"
+                    })
 
         # Check for orphan classes (no parent, no children, not used)
         all_classes = set()
@@ -2601,19 +2619,25 @@ class OntologyManager:
             if isinstance(class_uri, URIRef):
                 all_classes.add(str(class_uri))
 
-        # Classes used as domain/range
+        # Classes used as domain/range (including domainIncludes/rangeIncludes)
+        _all_domain_preds = (RDFS.domain,) + _DOMAIN_INCLUDES
+        _all_range_preds = (RDFS.range,) + _RANGE_INCLUDES
+
         for prop in self.graph.subjects(RDF.type, OWL.ObjectProperty):
-            domain = self.graph.value(prop, RDFS.domain)
-            range_ = self.graph.value(prop, RDFS.range)
-            if domain:
-                used_classes.add(str(domain))
-            if range_:
-                used_classes.add(str(range_))
+            for pred in _all_domain_preds:
+                for val in self.graph.objects(prop, pred):
+                    if isinstance(val, URIRef):
+                        used_classes.add(str(val))
+            for pred in _all_range_preds:
+                for val in self.graph.objects(prop, pred):
+                    if isinstance(val, URIRef):
+                        used_classes.add(str(val))
 
         for prop in self.graph.subjects(RDF.type, OWL.DatatypeProperty):
-            domain = self.graph.value(prop, RDFS.domain)
-            if domain:
-                used_classes.add(str(domain))
+            for pred in _all_domain_preds:
+                for val in self.graph.objects(prop, pred):
+                    if isinstance(val, URIRef):
+                        used_classes.add(str(val))
 
         # Classes with instances
         for ind in self.graph.subjects(RDF.type, OWL.NamedIndividual):
