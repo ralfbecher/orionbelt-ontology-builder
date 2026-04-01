@@ -11,6 +11,7 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #fff; }
     pointer-events: none; z-index: 10; line-height: 1.8;
 }
 #legend .row { white-space: nowrap; }
+#legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 2px; }
 #legend .line { display: inline-block; width: 20px; height: 2px; vertical-align: middle; margin-right: 2px; }
 #legend .line.dashed { border-top: 2px dashed; height: 0; }
 #legend .line.solid { border-top: 2px solid; height: 0; }
@@ -20,7 +21,7 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #fff; }
 <div id="container" style="position: relative;">
     <div id="graph"></div>
     <div id="legend">
-        <div class="row">&#x1f7e2; Classes  &#x1f535; Obj Props  &#x1f7e3; Data Props  &#x1f7e0; Individuals  &#x1f7e4; Annotations  <span style="color:#00897B;">&#x25A0;</span> SKOS</div>
+        <div class="row"><span class="dot" style="background:#4CAF50;"></span> Classes  <span class="dot" style="background:#2196F3;"></span> Obj Props  <span class="dot" style="background:#9C27B0;"></span> Data Props  <span class="dot" style="background:#FF9800;"></span> Individuals  <span class="dot" style="background:#795548;"></span> Annotations  <span class="dot" style="background:#00897B;"></span> SKOS  <span class="dot" style="background:#90A4AE;"></span> Triples</div>
         <div class="row">
             <span class="line solid" style="border-color:#81C784;"></span> subClassOf &nbsp;
             <span class="line solid" style="border-color:#2196F3;"></span> Object Prop &nbsp;
@@ -30,7 +31,8 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #fff; }
             <span class="line solid" style="border-color:#F44336;"></span> disjoint &nbsp;
             <span class="line dashed" style="border-color:#A1887F;"></span> annotation &nbsp;
             <span class="line solid" style="border-color:#26A69A;"></span> broader &nbsp;
-            <span class="line dashed" style="border-color:#80CBC4;"></span> related
+            <span class="line dashed" style="border-color:#80CBC4;"></span> related &nbsp;
+            <span class="line solid" style="border-color:#90A4AE;"></span> triple
         </div>
     </div>
 </div>
