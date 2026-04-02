@@ -428,6 +428,14 @@ class OntologyManager:
                         f"{self._local_name(s)} {self._local_name(p)}"
                     )
 
+        elif resource_type == "concept":
+            # SKOS relations referencing this concept
+            for s, p in self.graph.subject_predicates(uri):
+                if isinstance(s, URIRef) and p not in (RDF.type,):
+                    impact["relations"].append(
+                        f"{self._local_name(s)} {self._local_name(p)}"
+                    )
+
         # Count direct triples (subject) and referencing triples (object)
         impact["direct_triples"] = len(list(self.graph.predicate_objects(uri)))
 
@@ -886,10 +894,20 @@ class OntologyManager:
             }
 
             domain = self.graph.value(prop_uri, RDFS.domain)
+            if not domain or not isinstance(domain, URIRef):
+                for dp in _DOMAIN_INCLUDES:
+                    domain = self.graph.value(prop_uri, dp)
+                    if domain and isinstance(domain, URIRef):
+                        break
             if domain and isinstance(domain, URIRef):
                 prop_info["domain"] = self._local_name(domain)
 
             range_ = self.graph.value(prop_uri, RDFS.range)
+            if not range_ or not isinstance(range_, URIRef):
+                for rp in _RANGE_INCLUDES:
+                    range_ = self.graph.value(prop_uri, rp)
+                    if range_ and isinstance(range_, URIRef):
+                        break
             if range_ and isinstance(range_, URIRef):
                 prop_info["range"] = self._local_name(range_)
 
@@ -935,6 +953,11 @@ class OntologyManager:
             }
 
             domain = self.graph.value(prop_uri, RDFS.domain)
+            if not domain or not isinstance(domain, URIRef):
+                for dp in _DOMAIN_INCLUDES:
+                    domain = self.graph.value(prop_uri, dp)
+                    if domain and isinstance(domain, URIRef):
+                        break
             if domain and isinstance(domain, URIRef):
                 prop_info["domain"] = self._local_name(domain)
 
@@ -1392,9 +1415,34 @@ class OntologyManager:
             })
         return sorted(schemes, key=lambda s: s["name"])
 
+    def update_concept_scheme(self, name: str, new_label: str = _UNSET,
+                              new_comment: str = _UNSET):
+        """Update a SKOS ConceptScheme's properties."""
+        uri = self._uri(name)
+        # Resolve actual URI from graph if _uri doesn't match
+        for s_uri in self.graph.subjects(RDF.type, SKOS.ConceptScheme):
+            if self._local_name(s_uri) == name:
+                uri = s_uri
+                break
+
+        if new_label is not _UNSET:
+            self.graph.remove((uri, RDFS.label, None))
+            if new_label:
+                self.graph.add((uri, RDFS.label, Literal(new_label)))
+
+        if new_comment is not _UNSET:
+            self.graph.remove((uri, RDFS.comment, None))
+            if new_comment:
+                self.graph.add((uri, RDFS.comment, Literal(new_comment)))
+
     def delete_concept_scheme(self, name: str):
         """Delete a ConceptScheme and remove inScheme references."""
         uri = self._uri(name)
+        # Resolve actual URI from graph if _uri doesn't match
+        for s_uri in self.graph.subjects(RDF.type, SKOS.ConceptScheme):
+            if self._local_name(s_uri) == name:
+                uri = s_uri
+                break
         self.graph.remove((uri, None, None))
         self.graph.remove((None, SKOS.inScheme, uri))
         self.graph.remove((None, None, uri))
@@ -1431,14 +1479,23 @@ class OntologyManager:
 
     def get_concepts(self, scheme: str = None) -> List[Dict[str, Any]]:
         """Get SKOS Concepts, optionally filtered by scheme."""
+        # Resolve scheme name to URI by looking it up in the graph
+        scheme_uri = None
+        if scheme:
+            for s_uri in self.graph.subjects(RDF.type, SKOS.ConceptScheme):
+                if self._local_name(s_uri) == scheme:
+                    scheme_uri = s_uri
+                    break
+            if not scheme_uri:
+                scheme_uri = self._uri(scheme)
+
         concepts = []
         for uri in self.graph.subjects(RDF.type, SKOS.Concept):
             if isinstance(uri, BNode):
                 continue
 
             # Filter by scheme if specified
-            if scheme:
-                scheme_uri = self._uri(scheme)
+            if scheme and scheme_uri:
                 if (uri, SKOS.inScheme, scheme_uri) not in self.graph:
                     continue
 
@@ -1480,6 +1537,40 @@ class OntologyManager:
             })
 
         return sorted(concepts, key=lambda c: c["name"])
+
+    def update_concept(self, name: str, new_pref_label: str = _UNSET,
+                       new_definition: str = _UNSET,
+                       new_broader: str = _UNSET,
+                       add_scheme: str = None, remove_scheme: str = None):
+        """Update a SKOS Concept's properties."""
+        uri = self._uri(name)
+
+        if new_pref_label is not _UNSET:
+            self.graph.remove((uri, SKOS.prefLabel, None))
+            if new_pref_label:
+                self.graph.add((uri, SKOS.prefLabel, Literal(new_pref_label)))
+
+        if new_definition is not _UNSET:
+            self.graph.remove((uri, SKOS.definition, None))
+            if new_definition:
+                self.graph.add((uri, SKOS.definition, Literal(new_definition)))
+
+        if new_broader is not _UNSET:
+            # Remove old broader/narrower links
+            for old_broader in list(self.graph.objects(uri, SKOS.broader)):
+                self.graph.remove((uri, SKOS.broader, old_broader))
+                self.graph.remove((old_broader, SKOS.narrower, uri))
+            # Add new broader
+            if new_broader:
+                broader_uri = self._uri(new_broader)
+                self.graph.add((uri, SKOS.broader, broader_uri))
+                self.graph.add((broader_uri, SKOS.narrower, uri))
+
+        if add_scheme:
+            self.graph.add((uri, SKOS.inScheme, self._uri(add_scheme)))
+
+        if remove_scheme:
+            self.graph.remove((uri, SKOS.inScheme, self._uri(remove_scheme)))
 
     def add_concept_relation(self, concept1: str, relation: str, concept2: str):
         """Add a SKOS relation between two concepts.

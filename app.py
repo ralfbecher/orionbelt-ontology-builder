@@ -8,7 +8,7 @@ import json
 import traceback
 from datetime import datetime
 
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.1.0"
 
 GITHUB_ISSUES_URL = "https://github.com/ralfbecher/orionbelt-ontology-builder/issues"
 
@@ -1905,37 +1905,64 @@ def render_skos_vocabulary():
     scheme_names = [s["name"] for s in schemes]
     concept_names = [c["name"] for c in concepts]
 
+    # Clean up unused navigation flag
+    st.session_state.pop("_skos_navigate_to_concept", None)
+
     tab1, tab2, tab3, tab4 = st.tabs([
-        "Concept Schemes", "Concepts", "Concept Hierarchy", "SKOS Validation"
+        "Concepts", "Concept Schemes", "Concept Hierarchy", "SKOS Validation"
     ])
 
-    with tab1:
+    with tab2:
         st.subheader("Concept Schemes")
         if not schemes:
             st.info("No concept schemes defined yet.")
         else:
             for scheme in schemes:
                 display_name = format_label_name(scheme['name'], scheme.get('label'))
-                with st.expander(f"📚 **{display_name}** ({scheme['concept_count']} concepts)"):
+                _scheme_expanded = st.session_state.get(f"view_scheme_{scheme['name']}", False) or st.session_state.get(f"edit_scheme_{scheme['name']}", False)
+                with st.expander(f"📚 **{display_name}** ({scheme['concept_count']} concepts)", expanded=_scheme_expanded):
                     st.write(f"**URI:** `{scheme['uri']}`" if scheme['uri'].startswith("http://example.org/") else f"**URI:** {scheme['uri']}")
-                    st.write(f"**Label:** {scheme['label'] or '—'}")
-                    st.write(f"**Comment:** {scheme['comment'] or '—'}")
-                    if st.button("🗑️ Delete", key=f"del_scheme_{scheme['name']}"):
-                        st.session_state[f"confirm_delete_scheme_{scheme['name']}"] = True
+
+                    btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
+                    with btn_view:
+                        if st.button("👁️ View", key=f"btn_view_scheme_{scheme['name']}", use_container_width=True):
+                            st.session_state[f"view_scheme_{scheme['name']}"] = not st.session_state.get(f"view_scheme_{scheme['name']}", False)
+                            st.session_state[f"edit_scheme_{scheme['name']}"] = False
+                            st.rerun()
+                    with btn_edit:
+                        if st.button("✏️ Edit", key=f"btn_edit_scheme_{scheme['name']}", use_container_width=True):
+                            st.session_state[f"edit_scheme_{scheme['name']}"] = not st.session_state.get(f"edit_scheme_{scheme['name']}", False)
+                            st.session_state[f"view_scheme_{scheme['name']}"] = False
+                            st.rerun()
+                    with btn_del:
+                        if st.button("🗑️ Delete", key=f"btn_del_scheme_{scheme['name']}", use_container_width=True):
+                            st.session_state[f"confirm_delete_scheme_{scheme['name']}"] = True
+                            st.rerun()
+
+                    if st.session_state.get(f"view_scheme_{scheme['name']}", False):
+                        st.divider()
+                        st.write(f"**Name:** {scheme['name']}")
+                        st.write(f"**Label:** {scheme['label'] or '—'}")
+                        st.write(f"**Comment:** {scheme['comment'] or '—'}")
+                        st.write(f"**Concepts:** {scheme['concept_count']}")
+
+                    if confirm_delete(scheme["name"], "concept", f"scheme_{scheme['name']}"):
+                        ont.delete_concept_scheme(scheme['name'])
+                        save_checkpoint("Delete concept scheme")
+                        set_flash_message(f"Scheme '{scheme['name']}' deleted!", "success")
                         st.rerun()
-                    if st.session_state.get(f"confirm_delete_scheme_{scheme['name']}", False):
-                        st.warning(f"Delete scheme '{scheme['name']}' and remove all inScheme references?")
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            if st.button("Confirm Delete", key=f"confirm_del_scheme_{scheme['name']}"):
-                                ont.delete_concept_scheme(scheme['name'])
-                                save_checkpoint("Delete concept scheme")
-                                st.session_state.pop(f"confirm_delete_scheme_{scheme['name']}", None)
-                                set_flash_message(f"Scheme '{scheme['name']}' deleted!", "success")
-                                st.rerun()
-                        with c2:
-                            if st.button("Cancel", key=f"cancel_del_scheme_{scheme['name']}"):
-                                st.session_state.pop(f"confirm_delete_scheme_{scheme['name']}", None)
+
+                    if st.session_state.get(f"edit_scheme_{scheme['name']}", False):
+                        st.divider()
+                        with st.form(f"edit_scheme_form_{scheme['name']}"):
+                            new_label = st.text_input("Label", value=scheme["label"] or "", key=f"scheme_lbl_{scheme['name']}")
+                            new_comment = st.text_area("Comment", value=scheme["comment"] or "", key=f"scheme_cmt_{scheme['name']}")
+                            if st.form_submit_button("Save Changes"):
+                                ont.update_concept_scheme(scheme['name'], new_label=new_label, new_comment=new_comment)
+                                save_checkpoint("Update concept scheme")
+                                st.session_state[f"edit_scheme_{scheme['name']}"] = False
+                                st.session_state[f"view_scheme_{scheme['name']}"] = True
+                                show_message(f"Scheme '{scheme['name']}' updated!", "success")
                                 st.rerun()
 
         st.divider()
@@ -1955,7 +1982,7 @@ def render_skos_vocabulary():
                     show_message(f"Scheme '{s_name}' added!", "success")
                     st.rerun()
 
-    with tab2:
+    with tab1:
         st.subheader("Concepts")
         if not concepts:
             st.info("No concepts defined yet.")
@@ -1965,8 +1992,21 @@ def render_skos_vocabulary():
                                          key="concept_filter_scheme")
             filtered = concepts if filter_scheme == "All" else ont.get_concepts(scheme=filter_scheme)
 
+            # Collapse other concepts when one is active
+            def _concept_key(c):
+                return str(abs(hash(c['uri'])))[:8]
+            _active_concept = next((c for c in filtered if st.session_state.get(f"view_skos_{_concept_key(c)}", False) or st.session_state.get(f"edit_skos_{_concept_key(c)}", False)), None)
+            if _active_concept:
+                _active_ck = _concept_key(_active_concept)
+                for c in filtered:
+                    ck = _concept_key(c)
+                    if ck != _active_ck:
+                        st.session_state.pop(f"view_skos_{ck}", None)
+                        st.session_state.pop(f"edit_skos_{ck}", None)
+
             for concept in filtered:
                 pref = concept['prefLabel'] or concept['name']
+                display_name = format_label_name(concept['name'], pref if pref != concept['name'] else '')
                 badges = []
                 if concept['broader']:
                     badges.append(f"broader: {', '.join(concept['broader'])}")
@@ -1974,37 +2014,117 @@ def render_skos_vocabulary():
                     badges.append(f"scheme: {', '.join(concept['schemes'])}")
                 badge_str = f" — {'; '.join(badges)}" if badges else ""
 
-                with st.expander(f"🏷️ **{pref}** ({concept['name']}){badge_str}"):
-                    st.write(f"**URI:** `{concept['uri']}`" if concept['uri'].startswith("http://example.org/") else f"**URI:** {concept['uri']}")
-                    st.write(f"**prefLabel:** {concept['prefLabel'] or '—'}")
-                    st.write(f"**definition:** {concept['definition'] or '—'}")
-                    if concept['altLabels']:
-                        st.write(f"**altLabels:** {', '.join(concept['altLabels'])}")
-                    if concept['broader']:
-                        st.write(f"**broader:** {', '.join(concept['broader'])}")
-                    if concept['narrower']:
-                        st.write(f"**narrower:** {', '.join(concept['narrower'])}")
-                    if concept['related']:
-                        st.write(f"**related:** {', '.join(concept['related'])}")
+                # Use URI hash for unique widget keys (local name may not be unique)
+                _ck = str(abs(hash(concept['uri'])))[:8]
+                _sk = f"view_skos_{_ck}"
+                _ek = f"edit_skos_{_ck}"
 
-                    # Add relation inline
-                    with st.popover("Add Relation"):
-                        rel_type = st.selectbox("Relation", list(ont.SKOS_RELATIONS.keys()),
-                                                key=f"rel_type_{concept['name']}")
-                        other_concepts = [c for c in concept_names if c != concept['name']]
-                        rel_target = st.selectbox("Target Concept", other_concepts,
-                                                  key=f"rel_target_{concept['name']}")
-                        if st.button("Add", key=f"add_rel_{concept['name']}"):
-                            ont.add_concept_relation(concept['name'], rel_type, rel_target)
-                            save_checkpoint("Add concept relation")
-                            show_message(f"Added {rel_type} relation!", "success")
+                _skos_expanded = st.session_state.get(_sk, False) or st.session_state.get(_ek, False)
+                with st.expander(f"🏷️ **{display_name}**{badge_str}", expanded=_skos_expanded):
+                    st.write(f"**URI:** `{concept['uri']}`" if concept['uri'].startswith("http://example.org/") else f"**URI:** {concept['uri']}")
+
+                    btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
+                    with btn_view:
+                        if st.button("👁️ View", key=f"btn_view_{_ck}", use_container_width=True):
+                            st.session_state[_sk] = not st.session_state.get(_sk, False)
+                            st.session_state[_ek] = False
+                            st.rerun()
+                    with btn_edit:
+                        if st.button("✏️ Edit", key=f"btn_edit_{_ck}", use_container_width=True):
+                            st.session_state[_ek] = not st.session_state.get(_ek, False)
+                            st.session_state[_sk] = False
+                            st.rerun()
+                    with btn_del:
+                        if st.button("🗑️ Delete", key=f"btn_del_{_ck}", use_container_width=True):
+                            st.session_state[f"confirm_delete_{_ck}"] = True
                             st.rerun()
 
-                    if st.button("🗑️ Delete", key=f"del_concept_{concept['name']}"):
+                    # View details
+                    if st.session_state.get(_sk, False):
+                        st.divider()
+                        st.write(f"**Name:** {concept['name']}")
+                        st.write(f"**prefLabel:** {concept['prefLabel'] or '—'}")
+                        st.write(f"**definition:** {concept['definition'] or '—'}")
+                        if concept['altLabels']:
+                            st.write(f"**altLabels:** {', '.join(concept['altLabels'])}")
+                        if concept['broader']:
+                            st.write(f"**broader:** {', '.join(concept['broader'])}")
+                        if concept['narrower']:
+                            st.write(f"**narrower:** {', '.join(concept['narrower'])}")
+                        if concept['related']:
+                            st.write(f"**related:** {', '.join(concept['related'])}")
+                        if concept['schemes']:
+                            st.write(f"**schemes:** {', '.join(concept['schemes'])}")
+
+                        # Add relation inline
+                        with st.popover("Add Relation"):
+                            rel_type = st.selectbox("Relation", list(ont.SKOS_RELATIONS.keys()),
+                                                    key=f"rel_type_{_ck}")
+                            other_concepts = [c for c in concept_names if c != concept['name']]
+                            rel_target = st.selectbox("Target Concept", other_concepts,
+                                                      key=f"rel_target_{_ck}")
+                            if st.button("Add", key=f"add_rel_{_ck}"):
+                                ont.add_concept_relation(concept['name'], rel_type, rel_target)
+                                save_checkpoint("Add concept relation")
+                                show_message(f"Added {rel_type} relation!", "success")
+                                st.rerun()
+
+                        if st.button("✏️ Edit", key=f"btn_v2e_{_ck}"):
+                            st.session_state[_sk] = False
+                            st.session_state[_ek] = True
+                            st.rerun()
+
+                    if confirm_delete(concept["name"], "concept", f"c_{_ck}"):
                         ont.delete_concept(concept['name'])
                         save_checkpoint("Delete concept")
                         set_flash_message(f"Concept '{concept['name']}' deleted!", "success")
                         st.rerun()
+
+                    # Inline edit form
+                    if st.session_state.get(_ek, False):
+                        st.divider()
+                        with st.form(f"edit_concept_form_{_ck}"):
+                            new_pref = st.text_input("Preferred Label", value=concept["prefLabel"] or "", key=f"pref_{_ck}")
+                            new_def = st.text_area("Definition", value=concept["definition"] or "", key=f"def_{_ck}")
+
+                            # Broader concept
+                            other_concepts = [c for c in concept_names if c != concept['name']]
+                            current_broader = concept["broader"][0] if concept["broader"] else "None"
+                            broader_options = ["None"] + other_concepts
+                            broader_idx = broader_options.index(current_broader) if current_broader in broader_options else 0
+                            new_broader = st.selectbox("Broader Concept", broader_options, index=broader_idx, key=f"broader_{_ck}")
+
+                            # Scheme
+                            current_scheme = concept["schemes"][0] if concept.get("schemes") else "None"
+                            scheme_options = ["None"] + scheme_names
+                            scheme_idx = scheme_options.index(current_scheme) if current_scheme in scheme_options else 0
+                            new_scheme = st.selectbox("Scheme", scheme_options, index=scheme_idx, key=f"scheme_{_ck}")
+
+                            if st.form_submit_button("Save Changes"):
+                                # Handle broader change
+                                broader_val = new_broader if new_broader != "None" else ""
+                                old_broader = concept["broader"][0] if concept["broader"] else ""
+                                broader_changed = broader_val != old_broader
+
+                                # Handle scheme change
+                                old_scheme = concept["schemes"][0] if concept.get("schemes") else ""
+                                new_scheme_val = new_scheme if new_scheme != "None" else ""
+                                add_s = new_scheme_val if new_scheme_val and new_scheme_val != old_scheme else None
+                                remove_s = old_scheme if old_scheme and old_scheme != new_scheme_val else None
+
+                                _update_kwargs = dict(
+                                    new_pref_label=new_pref,
+                                    new_definition=new_def,
+                                    add_scheme=add_s,
+                                    remove_scheme=remove_s)
+                                if broader_changed:
+                                    _update_kwargs["new_broader"] = broader_val
+                                ont.update_concept(concept['name'], **_update_kwargs)
+                                save_checkpoint("Update concept")
+                                st.session_state[_ek] = False
+                                st.session_state[_sk] = True
+                                show_message(f"Concept '{concept['name']}' updated!", "success")
+                                st.rerun()
 
         st.divider()
         st.subheader("Add Concept")
@@ -2731,46 +2851,83 @@ def render_visualization():
     tab1, tab2, tab3 = st.tabs(["Interactive Graph", "Class Hierarchy", "Statistics"])
 
     with tab1:
-        # Row 1: entity type checkboxes + maximize
+        # Row 1: entity type checkboxes + ind. edges + triples
         _has_skos = stats.get("concepts", 0) > 0
         _has_owl = stats["classes"] > 0 or stats["object_properties"] > 0 or stats["data_properties"] > 0
-        _cols = st.columns([1, 1, 1, 1, 1, 1, 1]) if _has_skos else st.columns([1, 1, 1, 1, 1, 1])
+
+        # Persist viz settings across page switches.
+        # Widget keys are removed from session_state when the page is not rendered,
+        # so we store settings in separate "_viz_cfg_*" keys and sync on each visit.
+        _viz_cfg = {
+            "show_classes": _has_owl,
+            "show_obj_props": _has_owl,
+            "show_data_props": False,
+            "show_annotations": False,
+            "show_individuals": False,
+            "show_skos": True,
+            "show_ind_edges": False,
+            "show_triples": False,
+            "graph_height": 670,
+            "node_spacing": 150,
+            "maximize": False,
+            "highlight_issues": False,
+        }
+        for _k, _v in _viz_cfg.items():
+            cfg_key = f"_viz_cfg_{_k}"
+            wid_key = f"viz_{_k}"
+            if cfg_key not in st.session_state:
+                st.session_state[cfg_key] = _v
+            # Restore widget key from persisted config
+            st.session_state[wid_key] = st.session_state[cfg_key]
+
+        def _viz_sync(cfg_key, wid_key):
+            """Callback to persist widget value when changed."""
+            st.session_state[cfg_key] = st.session_state[wid_key]
+
+        _cols = st.columns([1, 1, 1, 1, 1, 1, 1, 1]) if _has_skos else st.columns([1, 1, 1, 1, 1, 1, 1])
         with _cols[0]:
-            show_classes = st.checkbox("Classes", value=_has_owl)
+            show_classes = st.checkbox("Classes", key="viz_show_classes", on_change=_viz_sync, args=("_viz_cfg_show_classes", "viz_show_classes"))
         with _cols[1]:
-            show_properties = st.checkbox("Obj Props", value=_has_owl)
+            show_properties = st.checkbox("Obj Props", key="viz_show_obj_props", on_change=_viz_sync, args=("_viz_cfg_show_obj_props", "viz_show_obj_props"))
         with _cols[2]:
-            show_data_props = st.checkbox("Data Props", value=False)
+            show_data_props = st.checkbox("Data Props", key="viz_show_data_props", on_change=_viz_sync, args=("_viz_cfg_show_data_props", "viz_show_data_props"))
         with _cols[3]:
-            show_annotations = st.checkbox("Annotations", value=False)
+            show_annotations = st.checkbox("Annotations", key="viz_show_annotations", on_change=_viz_sync, args=("_viz_cfg_show_annotations", "viz_show_annotations"))
         with _cols[4]:
-            show_individuals = st.checkbox("Individuals", value=False)
+            show_individuals = st.checkbox("Individuals", key="viz_show_individuals", on_change=_viz_sync, args=("_viz_cfg_show_individuals", "viz_show_individuals"))
         if _has_skos:
             with _cols[5]:
-                show_skos = st.checkbox("SKOS", value=True)
+                show_skos = st.checkbox("SKOS", key="viz_show_skos", on_change=_viz_sync, args=("_viz_cfg_show_skos", "viz_show_skos"))
             with _cols[6]:
-                maximize = st.checkbox("Maximize", help="Expand graph to full height")
+                show_ind_edges = st.checkbox("Ind. Edges", key="viz_show_ind_edges", on_change=_viz_sync, args=("_viz_cfg_show_ind_edges", "viz_show_ind_edges"), help="Show property edges between individuals")
+            with _cols[7]:
+                show_triples = st.checkbox("Triples", key="viz_show_triples", on_change=_viz_sync, args=("_viz_cfg_show_triples", "viz_show_triples"), help="Show all RDF triples for visible nodes")
         else:
             show_skos = False
             with _cols[5]:
-                maximize = st.checkbox("Maximize", help="Expand graph to full height")
+                show_ind_edges = st.checkbox("Ind. Edges", key="viz_show_ind_edges", on_change=_viz_sync, args=("_viz_cfg_show_ind_edges", "viz_show_ind_edges"), help="Show property edges between individuals")
+            with _cols[6]:
+                show_triples = st.checkbox("Triples", key="viz_show_triples", on_change=_viz_sync, args=("_viz_cfg_show_triples", "viz_show_triples"), help="Show all RDF triples for visible nodes")
 
-        # Row 2: sliders + validation + render button
-        col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+        # Row 2: sliders + maximize + highlight issues + render button
+        col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
         with col1:
-            height = st.slider("Graph Height", 300, 1200, 670, step=10)
-            if maximize:
-                height = 1200
+            height = st.slider("Graph Height", 300, 1200, step=10, key="viz_graph_height", on_change=_viz_sync, args=("_viz_cfg_graph_height", "viz_graph_height"))
         with col2:
             node_spacing = st.slider(
                 "Node Spacing",
-                50, 300, 150,
-                help="Distance between nodes. Increase for less overlap."
+                50, 300,
+                help="Distance between nodes. Increase for less overlap.",
+                key="viz_node_spacing", on_change=_viz_sync, args=("_viz_cfg_node_spacing", "viz_node_spacing")
             )
         with col3:
-            highlight_issues = st.checkbox("Highlight validation issues", value=False)
+            maximize = st.checkbox("Maximize", help="Expand graph to full height", key="viz_maximize", on_change=_viz_sync, args=("_viz_cfg_maximize", "viz_maximize"))
+            if maximize:
+                height = 1200
         with col4:
-            render_graph = st.button("Render Graph", type="primary", use_container_width=True)
+            highlight_issues = st.checkbox("Highlight Issues", key="viz_highlight_issues", on_change=_viz_sync, args=("_viz_cfg_highlight_issues", "viz_highlight_issues"))
+        with col5:
+            render_graph = st.button("Render", type="primary", use_container_width=True)
 
         validation_subjects = set()
         if highlight_issues:
@@ -2779,74 +2936,78 @@ def render_visualization():
 
         # Class filter
         all_class_names = [c["name"] for c in classes] if classes else []
+        if "_viz_cfg_selected_classes" not in st.session_state:
+            st.session_state["_viz_cfg_selected_classes"] = all_class_names
+        st.session_state["viz_selected_classes"] = st.session_state["_viz_cfg_selected_classes"]
         with st.expander("Filter Classes", expanded=False):
             selected_classes = st.multiselect(
                 "Select classes to display",
                 options=all_class_names,
-                default=all_class_names,
-                help="Choose which classes to show in the graph"
+                help="Choose which classes to show in the graph",
+                key="viz_selected_classes",
+                on_change=_viz_sync, args=("_viz_cfg_selected_classes", "viz_selected_classes")
             )
 
         # Store graph settings in session state for caching
         selected_classes_key = "_".join(sorted(selected_classes)) if selected_classes else "none"
-        _graph_ver = 12  # Bump to invalidate cached graph data after code changes
-        graph_key = f"v{_graph_ver}_{show_classes}_{show_properties}_{show_data_props}_{show_annotations}_{show_individuals}_{show_skos}_{height}_{node_spacing}_{highlight_issues}_{hash(selected_classes_key)}"
+        _graph_ver = 14  # Bump to invalidate cached graph data after code changes
+        graph_key = f"v{_graph_ver}_{show_classes}_{show_properties}_{show_data_props}_{show_annotations}_{show_individuals}_{show_ind_edges}_{show_skos}_{show_triples}_{height}_{node_spacing}_{highlight_issues}_{hash(selected_classes_key)}"
         if "last_graph_key" not in st.session_state:
             st.session_state.last_graph_key = None
             st.session_state.last_graph_data = None
+        if "viz_render_seq" not in st.session_state:
+            st.session_state.viz_render_seq = 0
 
-        # Rebuild graph data when settings change or button clicked
-        needs_rebuild = st.session_state.last_graph_key != graph_key or render_graph or st.session_state.last_graph_data is None
+        # Bump sequence on Render click to force component re-init (re-runs layout)
+        if render_graph:
+            st.session_state.viz_render_seq += 1
+
+        # Rebuild graph data when settings change or on first visit
+        needs_rebuild = st.session_state.last_graph_key != graph_key or st.session_state.last_graph_data is None
 
         if needs_rebuild:
-            # Build the graph
-            from pyvis.network import Network
-            import tempfile
-            import os
-
+            # Build the graph using lightweight dicts (no pyvis overhead)
             status = st.empty()
             status.info("Building graph...")
 
-            net = Network(height=f"{height - 32}px", width="100%", bgcolor="#ffffff",
-                         font_color="#f0f0f0", directed=True)
+            class _GraphBuilder:
+                """Minimal replacement for pyvis.Network — just collects nodes/edges."""
+                __slots__ = ("nodes", "edges", "_node_ids", "options")
+                def __init__(self):
+                    self.nodes = []
+                    self.edges = []
+                    self._node_ids = set()
+                    self.options = {}
+                def add_node(self, node_id, **kwargs):
+                    if node_id in self._node_ids:
+                        return
+                    self._node_ids.add(node_id)
+                    kwargs["id"] = node_id
+                    self.nodes.append(kwargs)
+                def add_edge(self, source, target, **kwargs):
+                    kwargs["from"] = source
+                    kwargs["to"] = target
+                    self.edges.append(kwargs)
 
-            # Fast layout - disable stabilization completely to avoid hanging
-            net.set_options(f'''
-            var options = {{
-                "physics": {{
-                    "enabled": true,
-                    "barnesHut": {{
+            net = _GraphBuilder()
+            net.options = {
+                "physics": {
+                    "enabled": True,
+                    "barnesHut": {
                         "gravitationalConstant": -5000,
                         "centralGravity": 0.3,
-                        "springLength": {node_spacing},
+                        "springLength": node_spacing,
                         "springConstant": 0.04,
                         "avoidOverlap": 0.3
-                    }},
-                    "stabilization": {{
-                        "enabled": false
-                    }}
-                }},
-                "nodes": {{
-                    "font": {{
-                        "color": "#f0f0f0",
-                        "size": 12
-                    }}
-                }},
-                "edges": {{
-                    "font": {{
-                        "color": "#cccccc",
-                        "size": 10,
-                        "strokeWidth": 2,
-                        "strokeColor": "#ffffff"
-                    }},
-                    "smooth": {{
-                        "enabled": true,
-                        "type": "curvedCW",
-                        "roundness": 0.2
-                    }}
-                }}
-            }}
-            ''')
+                    },
+                    "stabilization": {"enabled": True, "iterations": 80}
+                },
+                "nodes": {"font": {"color": "#f0f0f0", "size": 12}},
+                "edges": {
+                    "font": {"color": "#cccccc", "size": 10, "strokeWidth": 2, "strokeColor": "#ffffff"},
+                    "smooth": {"enabled": True, "type": "curvedCW", "roundness": 0.2}
+                }
+            }
 
             # Limit total nodes to prevent browser hanging
             max_nodes = 500
@@ -2905,14 +3066,14 @@ def render_visualization():
                                    color="#2196F3", arrows="to",
                                    ntype="Object Property", ename=prop["name"])
 
-            # Add data properties (only those connected to displayed classes)
-            if show_data_props and data_props and show_classes and node_count < max_nodes:
+            # Add data properties (connected to displayed classes, or standalone if no domain)
+            if show_data_props and data_props and node_count < max_nodes:
                 added_datatypes = set()
                 for prop in data_props:
                     if node_count >= max_nodes:
                         break
-                    # Only show if domain exists as a class node
-                    if not prop["domain"] or prop["domain"] not in class_names:
+                    # Skip if domain is set but the class node isn't displayed
+                    if prop["domain"] and show_classes and prop["domain"] not in class_names:
                         continue
 
                     label = prop["label"] if prop["label"] else prop["name"]
@@ -2926,14 +3087,15 @@ def render_visualization():
 
                     net.add_node(f"dprop_{prop['name']}", label=label, title=title,
                                color={"background": "#9C27B0", "border": "#7B1FA2"},
-                               shape="ellipse", size=12, font={"color": "#f0f0f0"},
+                               shape="box", size=12, font={"color": "#f0f0f0"},
                                ntype="Data Property", ename=prop["name"])
                     node_count += 1
 
                     # Connect to domain class
-                    net.add_edge(prop["domain"], f"dprop_{prop['name']}",
-                               title=f"Domain:\n{prop['name']} has domain {prop['domain']}",
-                               color="#CE93D8", arrows="to", dashes=True)
+                    if prop["domain"]:
+                        net.add_edge(prop["domain"], f"dprop_{prop['name']}",
+                                   title=f"Domain:\n{prop['name']} has domain {prop['domain']}",
+                                   color="#CE93D8", arrows="to", dashes=True)
 
                     # Add range as a literal type node
                     if prop["range"] and prop["range"] not in added_datatypes and node_count < max_nodes:
@@ -2969,18 +3131,29 @@ def render_visualization():
                         title += "\n⚠ Has validation issues"
                     net.add_node(f"ind_{ind['name']}", label=label, title=title,
                                color=ind_color, borderWidth=border_width,
-                               shape="dot", size=20,
+                               shape="box", size=20,
                                ntype="Individual", ename=ind["name"])
                     node_count += 1
 
-                    # Connect to classes
+                    # Connect to classes (only if class node is in the graph)
                     if show_classes:
                         for cls_name in ind["classes"]:
-                            if any(c["name"] == cls_name for c in classes):
+                            if cls_name in class_names:
                                 net.add_edge(f"ind_{ind['name']}", cls_name,
                                            label="type",
                                            title=f"Instance of:\n{ind['name']} is an instance of {cls_name}",
                                            color="#FFB74D", arrows="to")
+
+                # Add edges between individuals (object property assertions)
+                if show_ind_edges:
+                    ind_names = {ind["name"] for ind in individuals}
+                    for ind in individuals:
+                        for prop in ind.get("properties", []):
+                            if prop["value"] in ind_names:
+                                net.add_edge(f"ind_{ind['name']}", f"ind_{prop['value']}",
+                                           label=prop["property"],
+                                           title=f"{prop['property']}:\n{ind['name']} → {prop['value']}",
+                                           color="#FF9800", arrows="to")
 
             # Add class relations (only if both nodes exist)
             class_relations = ont.get_class_relations()
@@ -3077,7 +3250,7 @@ def render_visualization():
                     net.add_node(c_id, label=label, title=title,
                                color={"background": "#00897B", "border": "#00695C"},
                                shape="box", size=20,
-                               ntype="SKOS Concept", ename=concept["name"])
+                               ntype="SKOS Concept", ename=concept.get("uri", concept["name"]))
                     skos_node_ids.add(c_id)
                     node_count += 1
 
@@ -3098,6 +3271,74 @@ def render_visualization():
                             net.add_edge(c_id, r_id, label="related",
                                        title=f"Related: {concept['name']} ↔ {related}",
                                        color="#80CBC4", arrows="", dashes=True)
+
+            # Add raw RDF triples for visible nodes
+            if show_triples and node_count < max_nodes:
+                from rdflib import URIRef as _URIRef, Literal as _Literal, BNode as _BNode
+
+                # Build URI → node_id mapping from all visible nodes
+                _uri_to_node = {}
+                if show_classes and selected_classes:
+                    for cls in classes:
+                        if cls["name"] in selected_classes:
+                            _uri_to_node[cls["uri"]] = cls["name"]
+                if show_individuals and individuals:
+                    for ind in individuals:
+                        _uri_to_node[ind["uri"]] = f"ind_{ind['name']}"
+                if show_skos:
+                    for concept in ont.get_concepts():
+                        if concept.get("uri"):
+                            _uri_to_node[concept["uri"]] = f"skos_{concept['name']}"
+
+                # Query only triples with visible subjects (avoid full graph scan)
+                _triple_new = 0
+                _max_triple_new = 200
+                _local = ont._local_name
+                _triple_node_color = {"background": "#90A4AE", "border": "#607D8B"}
+                _literal_node_color = {"background": "#B0BEC5", "border": "#78909C"}
+                for s_uri_str, s_node in list(_uri_to_node.items()):
+                    s_uri = _URIRef(s_uri_str)
+                    s_local = _local(s_uri)
+                    for p, o in ont.graph.predicate_objects(s_uri):
+                        p_label = _local(p)
+
+                        if isinstance(o, _URIRef):
+                            o_str = str(o)
+                            if o_str in _uri_to_node:
+                                o_node = _uri_to_node[o_str]
+                            else:
+                                if _triple_new >= _max_triple_new:
+                                    continue
+                                o_node = f"triple_{abs(hash(o_str)) % 10**8}"
+                                net.add_node(o_node, label=_local(o),
+                                           title=f"URI: {o_str}",
+                                           color=_triple_node_color,
+                                           shape="box", size=10, font={"size": 10, "color": "#f0f0f0"})
+                                _uri_to_node[o_str] = o_node
+                                _triple_new += 1
+                                node_count += 1
+
+                            net.add_edge(s_node, o_node, label=p_label,
+                                       title=f"{s_local} → {p_label} → {_local(o)}",
+                                       color="#90A4AE", arrows="to")
+
+                        elif isinstance(o, _Literal):
+                            if _triple_new >= _max_triple_new:
+                                continue
+                            o_str = str(o)
+                            o_display = o_str[:30] + "..." if len(o_str) > 30 else o_str
+                            o_node = f"lit_{abs(hash(s_uri_str + str(p) + o_str)) % 10**8}"
+                            dt = str(o.datatype).split("#")[-1] if o.datatype else "string"
+                            net.add_node(o_node, label=o_display,
+                                       title=f"Literal: {o_str}\nDatatype: {dt}",
+                                       color=_literal_node_color,
+                                       shape="box", size=8, font={"size": 9, "color": "#333333"})
+                            _triple_new += 1
+                            node_count += 1
+
+                            net.add_edge(s_node, o_node, label=p_label,
+                                       title=f"{s_local} → {p_label} → {o_display}",
+                                       color="#B0BEC5", arrows="to")
 
             # Generate and display the graph using custom component
             try:
@@ -3129,17 +3370,20 @@ def render_visualization():
 
             selection = _graph_component(
                 nodes=gdata["nodes"], edges=gdata["edges"], options=gdata["options"],
-                height=height, key="graph_viewer", default=None
+                height=height, seq=st.session_state.viz_render_seq,
+                key="graph_viewer", default=None
             )
 
             # Status bar outside iframe — dark styled
             _type_to_page = {"Class": "Classes", "Object Property": "Properties",
-                             "Data Property": "Properties", "Individual": "Individuals"}
+                             "Data Property": "Properties", "Individual": "Individuals",
+                             "SKOS Concept": "SKOS Vocabulary"}
             _view_key_map = {
                 "Class": lambda n: f"view_class_{n}",
                 "Object Property": lambda n: f"view_objprop_{n}",
                 "Data Property": lambda n: f"view_dataprop_{n}",
                 "Individual": lambda n: f"view_ind_{n}",
+                "SKOS Concept": lambda n: f"view_skos_{str(abs(hash(n)))[:8]}",
             }
 
             # Status bar with View button
@@ -3192,6 +3436,8 @@ def render_visualization():
                         vk = _view_key_map[ntype](ename)
                         st.session_state.search_navigate_to = page
                         st.session_state[vk] = True
+                        if ntype == "SKOS Concept":
+                            st.session_state["_skos_navigate_to_concept"] = True
                         st.rerun()
             else:
                 st.markdown(
@@ -3306,12 +3552,13 @@ def main():
     if "graph_view_type" in _qp and "graph_view_name" in _qp:
         _gv_type = _qp["graph_view_type"]
         _gv_name = _qp["graph_view_name"]
-        _type_to_page = {"Class": "Classes", "Object Property": "Properties", "Data Property": "Properties", "Individual": "Individuals"}
+        _type_to_page = {"Class": "Classes", "Object Property": "Properties", "Data Property": "Properties", "Individual": "Individuals", "SKOS Concept": "SKOS Vocabulary"}
         _view_key_map = {
             "Class": f"view_class_{_gv_name}",
             "Object Property": f"view_objprop_{_gv_name}",
             "Data Property": f"view_dataprop_{_gv_name}",
             "Individual": f"view_ind_{_gv_name}",
+            "SKOS Concept": f"view_skos_{str(abs(hash(_gv_name)))[:8]}",
         }
         _nav_page = _type_to_page.get(_gv_type)
         if _nav_page:
@@ -3319,6 +3566,8 @@ def main():
             _vk = _view_key_map.get(_gv_type)
             if _vk:
                 st.session_state[_vk] = True
+            if _gv_type == "SKOS Concept":
+                st.session_state["_skos_navigate_to_concept"] = True
         st.query_params.clear()
         st.rerun()
 
@@ -3351,6 +3600,7 @@ def main():
         "Object Property": "Properties",
         "Data Property": "Properties",
         "Individual": "Individuals",
+        "SKOS Concept": "SKOS Vocabulary",
     }
     search_query = st.sidebar.text_input("Search", placeholder="Search resources...", key="global_search")
     if search_query:
@@ -3374,6 +3624,7 @@ def main():
                             "Object Property": f"view_objprop_{r['name']}",
                             "Data Property": f"view_dataprop_{r['name']}",
                             "Individual": f"view_ind_{r['name']}",
+                            "SKOS Concept": f"view_skos_{str(abs(hash(r.get('uri', r['name']))))[:8]}",
                         }
                         view_key = view_key_map.get(type_label)
                         if view_key:
