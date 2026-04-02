@@ -2851,49 +2851,82 @@ def render_visualization():
     tab1, tab2, tab3 = st.tabs(["Interactive Graph", "Class Hierarchy", "Statistics"])
 
     with tab1:
-        # Row 1: entity type checkboxes + maximize
+        # Row 1: entity type checkboxes + ind. edges + triples
         _has_skos = stats.get("concepts", 0) > 0
         _has_owl = stats["classes"] > 0 or stats["object_properties"] > 0 or stats["data_properties"] > 0
-        _cols = st.columns([1, 1, 1, 1, 1, 1, 1]) if _has_skos else st.columns([1, 1, 1, 1, 1, 1])
+
+        # Persist viz settings across page switches.
+        # Widget keys are removed from session_state when the page is not rendered,
+        # so we store settings in separate "_viz_cfg_*" keys and sync on each visit.
+        _viz_cfg = {
+            "show_classes": _has_owl,
+            "show_obj_props": _has_owl,
+            "show_data_props": False,
+            "show_annotations": False,
+            "show_individuals": False,
+            "show_skos": True,
+            "show_ind_edges": False,
+            "show_triples": False,
+            "graph_height": 670,
+            "node_spacing": 150,
+            "maximize": False,
+            "highlight_issues": False,
+        }
+        for _k, _v in _viz_cfg.items():
+            cfg_key = f"_viz_cfg_{_k}"
+            wid_key = f"viz_{_k}"
+            if cfg_key not in st.session_state:
+                st.session_state[cfg_key] = _v
+            # Restore widget key from persisted config
+            st.session_state[wid_key] = st.session_state[cfg_key]
+
+        def _viz_sync(cfg_key, wid_key):
+            """Callback to persist widget value when changed."""
+            st.session_state[cfg_key] = st.session_state[wid_key]
+
+        _cols = st.columns([1, 1, 1, 1, 1, 1, 1, 1]) if _has_skos else st.columns([1, 1, 1, 1, 1, 1, 1])
         with _cols[0]:
-            show_classes = st.checkbox("Classes", value=_has_owl)
+            show_classes = st.checkbox("Classes", key="viz_show_classes", on_change=_viz_sync, args=("_viz_cfg_show_classes", "viz_show_classes"))
         with _cols[1]:
-            show_properties = st.checkbox("Obj Props", value=_has_owl)
+            show_properties = st.checkbox("Obj Props", key="viz_show_obj_props", on_change=_viz_sync, args=("_viz_cfg_show_obj_props", "viz_show_obj_props"))
         with _cols[2]:
-            show_data_props = st.checkbox("Data Props", value=False)
+            show_data_props = st.checkbox("Data Props", key="viz_show_data_props", on_change=_viz_sync, args=("_viz_cfg_show_data_props", "viz_show_data_props"))
         with _cols[3]:
-            show_annotations = st.checkbox("Annotations", value=False)
+            show_annotations = st.checkbox("Annotations", key="viz_show_annotations", on_change=_viz_sync, args=("_viz_cfg_show_annotations", "viz_show_annotations"))
         with _cols[4]:
-            show_individuals = st.checkbox("Individuals", value=False)
+            show_individuals = st.checkbox("Individuals", key="viz_show_individuals", on_change=_viz_sync, args=("_viz_cfg_show_individuals", "viz_show_individuals"))
         if _has_skos:
             with _cols[5]:
-                show_skos = st.checkbox("SKOS", value=True)
+                show_skos = st.checkbox("SKOS", key="viz_show_skos", on_change=_viz_sync, args=("_viz_cfg_show_skos", "viz_show_skos"))
             with _cols[6]:
-                maximize = st.checkbox("Maximize", help="Expand graph to full height")
+                show_ind_edges = st.checkbox("Ind. Edges", key="viz_show_ind_edges", on_change=_viz_sync, args=("_viz_cfg_show_ind_edges", "viz_show_ind_edges"), help="Show property edges between individuals")
+            with _cols[7]:
+                show_triples = st.checkbox("Triples", key="viz_show_triples", on_change=_viz_sync, args=("_viz_cfg_show_triples", "viz_show_triples"), help="Show all RDF triples for visible nodes")
         else:
             show_skos = False
             with _cols[5]:
-                maximize = st.checkbox("Maximize", help="Expand graph to full height")
+                show_ind_edges = st.checkbox("Ind. Edges", key="viz_show_ind_edges", on_change=_viz_sync, args=("_viz_cfg_show_ind_edges", "viz_show_ind_edges"), help="Show property edges between individuals")
+            with _cols[6]:
+                show_triples = st.checkbox("Triples", key="viz_show_triples", on_change=_viz_sync, args=("_viz_cfg_show_triples", "viz_show_triples"), help="Show all RDF triples for visible nodes")
 
-        # Row 2: sliders + display options + render button
-        col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 1, 1, 1, 1])
+        # Row 2: sliders + maximize + highlight issues + render button
+        col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
         with col1:
-            height = st.slider("Graph Height", 300, 1200, 670, step=10)
-            if maximize:
-                height = 1200
+            height = st.slider("Graph Height", 300, 1200, step=10, key="viz_graph_height", on_change=_viz_sync, args=("_viz_cfg_graph_height", "viz_graph_height"))
         with col2:
             node_spacing = st.slider(
                 "Node Spacing",
-                50, 300, 150,
-                help="Distance between nodes. Increase for less overlap."
+                50, 300,
+                help="Distance between nodes. Increase for less overlap.",
+                key="viz_node_spacing", on_change=_viz_sync, args=("_viz_cfg_node_spacing", "viz_node_spacing")
             )
         with col3:
-            show_ind_edges = st.checkbox("Ind. Edges", value=True, help="Show property edges between individuals")
+            maximize = st.checkbox("Maximize", help="Expand graph to full height", key="viz_maximize", on_change=_viz_sync, args=("_viz_cfg_maximize", "viz_maximize"))
+            if maximize:
+                height = 1200
         with col4:
-            show_triples = st.checkbox("Triples", value=False, help="Show all RDF triples for visible nodes")
+            highlight_issues = st.checkbox("Highlight Issues", key="viz_highlight_issues", on_change=_viz_sync, args=("_viz_cfg_highlight_issues", "viz_highlight_issues"))
         with col5:
-            highlight_issues = st.checkbox("Highlight Issues", value=False)
-        with col6:
             render_graph = st.button("Render", type="primary", use_container_width=True)
 
         validation_subjects = set()
@@ -2903,74 +2936,78 @@ def render_visualization():
 
         # Class filter
         all_class_names = [c["name"] for c in classes] if classes else []
+        if "_viz_cfg_selected_classes" not in st.session_state:
+            st.session_state["_viz_cfg_selected_classes"] = all_class_names
+        st.session_state["viz_selected_classes"] = st.session_state["_viz_cfg_selected_classes"]
         with st.expander("Filter Classes", expanded=False):
             selected_classes = st.multiselect(
                 "Select classes to display",
                 options=all_class_names,
-                default=all_class_names,
-                help="Choose which classes to show in the graph"
+                help="Choose which classes to show in the graph",
+                key="viz_selected_classes",
+                on_change=_viz_sync, args=("_viz_cfg_selected_classes", "viz_selected_classes")
             )
 
         # Store graph settings in session state for caching
         selected_classes_key = "_".join(sorted(selected_classes)) if selected_classes else "none"
-        _graph_ver = 13  # Bump to invalidate cached graph data after code changes
+        _graph_ver = 14  # Bump to invalidate cached graph data after code changes
         graph_key = f"v{_graph_ver}_{show_classes}_{show_properties}_{show_data_props}_{show_annotations}_{show_individuals}_{show_ind_edges}_{show_skos}_{show_triples}_{height}_{node_spacing}_{highlight_issues}_{hash(selected_classes_key)}"
         if "last_graph_key" not in st.session_state:
             st.session_state.last_graph_key = None
             st.session_state.last_graph_data = None
+        if "viz_render_seq" not in st.session_state:
+            st.session_state.viz_render_seq = 0
 
-        # Rebuild graph data when settings change or button clicked
-        needs_rebuild = st.session_state.last_graph_key != graph_key or render_graph or st.session_state.last_graph_data is None
+        # Bump sequence on Render click to force component re-init (re-runs layout)
+        if render_graph:
+            st.session_state.viz_render_seq += 1
+
+        # Rebuild graph data when settings change or on first visit
+        needs_rebuild = st.session_state.last_graph_key != graph_key or st.session_state.last_graph_data is None
 
         if needs_rebuild:
-            # Build the graph
-            from pyvis.network import Network
-            import tempfile
-            import os
-
+            # Build the graph using lightweight dicts (no pyvis overhead)
             status = st.empty()
             status.info("Building graph...")
 
-            net = Network(height=f"{height - 32}px", width="100%", bgcolor="#ffffff",
-                         font_color="#f0f0f0", directed=True)
+            class _GraphBuilder:
+                """Minimal replacement for pyvis.Network — just collects nodes/edges."""
+                __slots__ = ("nodes", "edges", "_node_ids", "options")
+                def __init__(self):
+                    self.nodes = []
+                    self.edges = []
+                    self._node_ids = set()
+                    self.options = {}
+                def add_node(self, node_id, **kwargs):
+                    if node_id in self._node_ids:
+                        return
+                    self._node_ids.add(node_id)
+                    kwargs["id"] = node_id
+                    self.nodes.append(kwargs)
+                def add_edge(self, source, target, **kwargs):
+                    kwargs["from"] = source
+                    kwargs["to"] = target
+                    self.edges.append(kwargs)
 
-            # Fast layout - disable stabilization completely to avoid hanging
-            net.set_options(f'''
-            var options = {{
-                "physics": {{
-                    "enabled": true,
-                    "barnesHut": {{
+            net = _GraphBuilder()
+            net.options = {
+                "physics": {
+                    "enabled": True,
+                    "barnesHut": {
                         "gravitationalConstant": -5000,
                         "centralGravity": 0.3,
-                        "springLength": {node_spacing},
+                        "springLength": node_spacing,
                         "springConstant": 0.04,
                         "avoidOverlap": 0.3
-                    }},
-                    "stabilization": {{
-                        "enabled": false
-                    }}
-                }},
-                "nodes": {{
-                    "font": {{
-                        "color": "#f0f0f0",
-                        "size": 12
-                    }}
-                }},
-                "edges": {{
-                    "font": {{
-                        "color": "#cccccc",
-                        "size": 10,
-                        "strokeWidth": 2,
-                        "strokeColor": "#ffffff"
-                    }},
-                    "smooth": {{
-                        "enabled": true,
-                        "type": "curvedCW",
-                        "roundness": 0.2
-                    }}
-                }}
-            }}
-            ''')
+                    },
+                    "stabilization": {"enabled": True, "iterations": 80}
+                },
+                "nodes": {"font": {"color": "#f0f0f0", "size": 12}},
+                "edges": {
+                    "font": {"color": "#cccccc", "size": 10, "strokeWidth": 2, "strokeColor": "#ffffff"},
+                    "smooth": {"enabled": True, "type": "curvedCW", "roundness": 0.2}
+                }
+            }
 
             # Limit total nodes to prevent browser hanging
             max_nodes = 500
@@ -3098,10 +3135,10 @@ def render_visualization():
                                ntype="Individual", ename=ind["name"])
                     node_count += 1
 
-                    # Connect to classes
+                    # Connect to classes (only if class node is in the graph)
                     if show_classes:
                         for cls_name in ind["classes"]:
-                            if any(c["name"] == cls_name for c in classes):
+                            if cls_name in class_names:
                                 net.add_edge(f"ind_{ind['name']}", cls_name,
                                            label="type",
                                            title=f"Instance of:\n{ind['name']} is an instance of {cls_name}",
@@ -3253,53 +3290,55 @@ def render_visualization():
                         if concept.get("uri"):
                             _uri_to_node[concept["uri"]] = f"skos_{concept['name']}"
 
+                # Query only triples with visible subjects (avoid full graph scan)
                 _triple_new = 0
                 _max_triple_new = 200
-                for s, p, o in ont.graph:
-                    if isinstance(s, _BNode) or str(s) not in _uri_to_node:
-                        continue
-                    s_node = _uri_to_node[str(s)]
-                    p_label = ont._local_name(p)
+                _local = ont._local_name
+                _triple_node_color = {"background": "#90A4AE", "border": "#607D8B"}
+                _literal_node_color = {"background": "#B0BEC5", "border": "#78909C"}
+                for s_uri_str, s_node in list(_uri_to_node.items()):
+                    s_uri = _URIRef(s_uri_str)
+                    s_local = _local(s_uri)
+                    for p, o in ont.graph.predicate_objects(s_uri):
+                        p_label = _local(p)
 
-                    if isinstance(o, _URIRef):
-                        o_str = str(o)
-                        if o_str in _uri_to_node:
-                            o_node = _uri_to_node[o_str]
-                        else:
+                        if isinstance(o, _URIRef):
+                            o_str = str(o)
+                            if o_str in _uri_to_node:
+                                o_node = _uri_to_node[o_str]
+                            else:
+                                if _triple_new >= _max_triple_new:
+                                    continue
+                                o_node = f"triple_{abs(hash(o_str)) % 10**8}"
+                                net.add_node(o_node, label=_local(o),
+                                           title=f"URI: {o_str}",
+                                           color=_triple_node_color,
+                                           shape="box", size=10, font={"size": 10, "color": "#f0f0f0"})
+                                _uri_to_node[o_str] = o_node
+                                _triple_new += 1
+                                node_count += 1
+
+                            net.add_edge(s_node, o_node, label=p_label,
+                                       title=f"{s_local} → {p_label} → {_local(o)}",
+                                       color="#90A4AE", arrows="to")
+
+                        elif isinstance(o, _Literal):
                             if _triple_new >= _max_triple_new:
                                 continue
-                            o_name = ont._local_name(o)
-                            o_node = f"triple_{abs(hash(o_str)) % 10**8}"
-                            net.add_node(o_node, label=o_name,
-                                       title=f"URI: {o_str}",
-                                       color={"background": "#90A4AE", "border": "#607D8B"},
-                                       shape="box", size=10, font={"size": 10, "color": "#f0f0f0"})
-                            _uri_to_node[o_str] = o_node
+                            o_str = str(o)
+                            o_display = o_str[:30] + "..." if len(o_str) > 30 else o_str
+                            o_node = f"lit_{abs(hash(s_uri_str + str(p) + o_str)) % 10**8}"
+                            dt = str(o.datatype).split("#")[-1] if o.datatype else "string"
+                            net.add_node(o_node, label=o_display,
+                                       title=f"Literal: {o_str}\nDatatype: {dt}",
+                                       color=_literal_node_color,
+                                       shape="box", size=8, font={"size": 9, "color": "#333333"})
                             _triple_new += 1
                             node_count += 1
 
-                        net.add_edge(s_node, o_node, label=p_label,
-                                   title=f"{ont._local_name(s)} → {p_label} → {ont._local_name(o)}",
-                                   color="#90A4AE", arrows="to")
-
-                    elif isinstance(o, _Literal):
-                        if _triple_new >= _max_triple_new:
-                            continue
-                        o_display = str(o)[:30]
-                        if len(str(o)) > 30:
-                            o_display += "..."
-                        o_node = f"lit_{abs(hash(str(s) + str(p) + str(o))) % 10**8}"
-                        dt = str(o.datatype).split("#")[-1] if o.datatype else "string"
-                        net.add_node(o_node, label=o_display,
-                                   title=f"Literal: {str(o)}\nDatatype: {dt}",
-                                   color={"background": "#B0BEC5", "border": "#78909C"},
-                                   shape="box", size=8, font={"size": 9, "color": "#333333"})
-                        _triple_new += 1
-                        node_count += 1
-
-                        net.add_edge(s_node, o_node, label=p_label,
-                                   title=f"{ont._local_name(s)} → {p_label} → {o_display}",
-                                   color="#B0BEC5", arrows="to")
+                            net.add_edge(s_node, o_node, label=p_label,
+                                       title=f"{s_local} → {p_label} → {o_display}",
+                                       color="#B0BEC5", arrows="to")
 
             # Generate and display the graph using custom component
             try:
@@ -3331,7 +3370,8 @@ def render_visualization():
 
             selection = _graph_component(
                 nodes=gdata["nodes"], edges=gdata["edges"], options=gdata["options"],
-                height=height, key="graph_viewer", default=None
+                height=height, seq=st.session_state.viz_render_seq,
+                key="graph_viewer", default=None
             )
 
             # Status bar outside iframe — dark styled

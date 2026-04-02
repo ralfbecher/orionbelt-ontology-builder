@@ -20,21 +20,7 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #fff; }
 <body>
 <div id="container" style="position: relative;">
     <div id="graph"></div>
-    <div id="legend">
-        <div class="row"><span class="dot" style="background:#4CAF50;"></span> Classes  <span class="dot" style="background:#2196F3;"></span> Obj Props  <span class="dot" style="background:#9C27B0;"></span> Data Props  <span class="dot" style="background:#FF9800;"></span> Individuals  <span class="dot" style="background:#795548;"></span> Annotations  <span class="dot" style="background:#00897B;"></span> SKOS  <span class="dot" style="background:#90A4AE;"></span> Triples</div>
-        <div class="row">
-            <span class="line solid" style="border-color:#81C784;"></span> subClassOf &nbsp;
-            <span class="line solid" style="border-color:#2196F3;"></span> Object Prop &nbsp;
-            <span class="line dashed" style="border-color:#CE93D8;"></span> Data Prop &nbsp;
-            <span class="line solid" style="border-color:#FFB74D;"></span> type &nbsp;
-            <span class="line solid" style="border-color:#9C27B0;"></span> equivalent &nbsp;
-            <span class="line solid" style="border-color:#F44336;"></span> disjoint &nbsp;
-            <span class="line dashed" style="border-color:#A1887F;"></span> annotation &nbsp;
-            <span class="line solid" style="border-color:#26A69A;"></span> broader &nbsp;
-            <span class="line dashed" style="border-color:#80CBC4;"></span> related &nbsp;
-            <span class="line solid" style="border-color:#90A4AE;"></span> triple
-        </div>
-    </div>
+    <div id="legend"></div>
 </div>
 <script>
 // Streamlit component communication
@@ -56,8 +42,84 @@ function renderGraph(args) {
     var nodes = new vis.DataSet(JSON.parse(args.nodes));
     var edges = new vis.DataSet(JSON.parse(args.edges));
     var options = JSON.parse(args.options);
+    // Batch stabilization: compute layout before first render, then freeze.
+    // Scale iterations with node count for quality vs speed balance.
+    var nCount = JSON.parse(args.nodes).length;
+    var iters = Math.min(Math.max(nCount * 3, 150), 500);
+    options.physics = options.physics || {};
+    // Batch-stabilize most of the layout, then let it jiggle briefly for visual feedback.
+    var batchIters = Math.max(iters - 40, 80);
+    options.physics.stabilization = { enabled: true, iterations: batchIters, updateInterval: 50 };
     network = new vis.Network(el, {nodes: nodes, edges: edges}, options);
-    setTimeout(function() { network.setOptions({ physics: { enabled: false } }); }, 1500);
+    // After batch, let live physics run briefly for a short settle animation, then freeze.
+    network.once('stabilizationIterationsDone', function() {
+        setTimeout(function() { network.setOptions({ physics: { enabled: false } }); }, 500);
+    });
+
+    // Build dynamic legend from actual nodes and edges
+    var nodeColors = {};
+    nodes.forEach(function(n) {
+        var bg = n.color && (typeof n.color === 'string' ? n.color : n.color.background);
+        if (!bg) return;
+        var key = bg.toUpperCase();
+        if (!nodeColors[key]) nodeColors[key] = true;
+    });
+    var edgeColors = {};
+    edges.forEach(function(e) {
+        var c = typeof e.color === 'string' ? e.color : (e.color && e.color.color) || '';
+        var lbl = (e.label || '').toLowerCase();
+        if (c) edgeColors[c.toUpperCase() + '|' + lbl] = true;
+    });
+
+    var nodeItems = [
+        {color: '#4CAF50', label: 'Classes'},
+        {color: '#2196F3', label: 'Obj Props'},
+        {color: '#9C27B0', label: 'Data Props'},
+        {color: '#FF9800', label: 'Individuals'},
+        {color: '#795548', label: 'Annotations'},
+        {color: '#00897B', label: 'SKOS'},
+        {color: '#90A4AE', label: 'Triples'}
+    ];
+    var edgeItems = [
+        {color: '#81C784', label: 'subClassOf', match: 'subclassof', dashed: false},
+        {color: '#2196F3', label: 'Object Prop', match: null, dashed: false},
+        {color: '#CE93D8', label: 'Data Prop', match: null, dashed: true},
+        {color: '#FFB74D', label: 'type', match: 'type', dashed: false},
+        {color: '#9C27B0', label: 'equivalent', match: 'equivalentclass', dashed: false},
+        {color: '#F44336', label: 'disjoint', match: 'disjointwith', dashed: false},
+        {color: '#A1887F', label: 'annotation', match: null, dashed: true},
+        {color: '#26A69A', label: 'broader', match: 'broader', dashed: false},
+        {color: '#80CBC4', label: 'related', match: 'related', dashed: true},
+        {color: '#90A4AE', label: 'triple', match: null, dashed: false}
+    ];
+
+    var nodeLegend = '';
+    nodeItems.forEach(function(item) {
+        if (nodeColors[item.color.toUpperCase()]) {
+            nodeLegend += '<span class="dot" style="background:' + item.color + ';"></span> ' + item.label + '  ';
+        }
+    });
+    var edgeLegend = '';
+    edgeItems.forEach(function(item) {
+        var found = false;
+        var uc = item.color.toUpperCase();
+        for (var k in edgeColors) {
+            if (k.indexOf(uc) === 0) { found = true; break; }
+        }
+        if (found) {
+            var cls = item.dashed ? 'line dashed' : 'line solid';
+            edgeLegend += '<span class="' + cls + '" style="border-color:' + item.color + ';"></span> ' + item.label + ' &nbsp;';
+        }
+    });
+
+    var legendEl = document.getElementById('legend');
+    if (nodeLegend || edgeLegend) {
+        legendEl.innerHTML = (nodeLegend ? '<div class="row">' + nodeLegend + '</div>' : '') +
+                             (edgeLegend ? '<div class="row">' + edgeLegend + '</div>' : '');
+        legendEl.style.display = '';
+    } else {
+        legendEl.style.display = 'none';
+    }
 
     network.on('selectNode', function(params) {
         var nd = nodes.get(params.nodes[0]);
