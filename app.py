@@ -8,7 +8,7 @@ import json
 import traceback
 from datetime import datetime
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 
 GITHUB_ISSUES_URL = "https://github.com/ralfbecher/orionbelt-ontology-builder/issues"
 
@@ -177,6 +177,28 @@ def format_label_name(name: str, label: str) -> str:
     if label and label != name:
         return f"{label} ({name})"
     return name
+
+
+def _cb_toggle_view(prefix, name):
+    """Callback: toggle view panel, close edit."""
+    vk = f"view_{prefix}_{name}"
+    st.session_state[vk] = not st.session_state.get(vk, False)
+    st.session_state[f"edit_{prefix}_{name}"] = False
+
+def _cb_toggle_edit(prefix, name):
+    """Callback: toggle edit panel, close view."""
+    ek = f"edit_{prefix}_{name}"
+    st.session_state[ek] = not st.session_state.get(ek, False)
+    st.session_state[f"view_{prefix}_{name}"] = False
+
+def _cb_view_to_edit(prefix, name):
+    """Callback: switch from view to edit."""
+    st.session_state[f"view_{prefix}_{name}"] = False
+    st.session_state[f"edit_{prefix}_{name}"] = True
+
+def _cb_confirm_delete(key_suffix):
+    """Callback: trigger delete confirmation."""
+    st.session_state[f"confirm_delete_{key_suffix}"] = True
 
 
 def build_class_options(classes: list, include_none: bool = False) -> tuple:
@@ -451,19 +473,14 @@ def render_classes():
 
                     btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
                     with btn_view:
-                        if st.button("👁️ View", key=f"btn_view_class_{cls['name']}", use_container_width=True):
-                            st.session_state[f"view_class_{cls['name']}"] = not st.session_state.get(f"view_class_{cls['name']}", False)
-                            st.session_state[f"edit_class_{cls['name']}"] = False
-                            st.rerun()
+                        st.button("👁️ View", key=f"btn_view_class_{cls['name']}", use_container_width=True,
+                                  on_click=_cb_toggle_view, args=("class", cls['name']))
                     with btn_edit:
-                        if st.button("✏️ Edit", key=f"btn_edit_class_{cls['name']}", use_container_width=True):
-                            st.session_state[f"edit_class_{cls['name']}"] = not st.session_state.get(f"edit_class_{cls['name']}", False)
-                            st.session_state[f"view_class_{cls['name']}"] = False
-                            st.rerun()
+                        st.button("✏️ Edit", key=f"btn_edit_class_{cls['name']}", use_container_width=True,
+                                  on_click=_cb_toggle_edit, args=("class", cls['name']))
                     with btn_del:
-                        if st.button("🗑️ Delete", key=f"btn_del_class_{cls['name']}", use_container_width=True):
-                            st.session_state[f"confirm_delete_class_{cls['name']}"] = True
-                            st.rerun()
+                        st.button("🗑️ Delete", key=f"btn_del_class_{cls['name']}", use_container_width=True,
+                                  on_click=_cb_confirm_delete, args=(f"class_{cls['name']}",))
 
                     # View details
                     if st.session_state.get(f"view_class_{cls['name']}", False):
@@ -474,10 +491,8 @@ def render_classes():
                         st.write(f"**Parent Class:** {', '.join(cls['parents']) if cls['parents'] else '—'}")
                         if cls["children"]:
                             st.write(f"**Children:** {', '.join(cls['children'])}")
-                        if st.button("✏️ Edit", key=f"btn_view_to_edit_class_{cls['name']}"):
-                            st.session_state[f"view_class_{cls['name']}"] = False
-                            st.session_state[f"edit_class_{cls['name']}"] = True
-                            st.rerun()
+                        st.button("✏️ Edit", key=f"btn_view_to_edit_class_{cls['name']}",
+                                  on_click=_cb_view_to_edit, args=("class", cls['name']))
 
                     if confirm_delete(cls["name"], "class", f"class_{cls['name']}"):
                         ont.delete_class(cls["name"])
@@ -765,19 +780,14 @@ def render_properties():
 
                     btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
                     with btn_view:
-                        if st.button("👁️ View", key=f"btn_view_objprop_{prop['name']}", use_container_width=True):
-                            st.session_state[f"view_objprop_{prop['name']}"] = not st.session_state.get(f"view_objprop_{prop['name']}", False)
-                            st.session_state[f"edit_objprop_{prop['name']}"] = False
-                            st.rerun()
+                        st.button("👁️ View", key=f"btn_view_objprop_{prop['name']}", use_container_width=True,
+                                  on_click=_cb_toggle_view, args=("objprop", prop['name']))
                     with btn_edit:
-                        if st.button("✏️ Edit", key=f"btn_edit_objprop_{prop['name']}", use_container_width=True):
-                            st.session_state[f"edit_objprop_{prop['name']}"] = not st.session_state.get(f"edit_objprop_{prop['name']}", False)
-                            st.session_state[f"view_objprop_{prop['name']}"] = False
-                            st.rerun()
+                        st.button("✏️ Edit", key=f"btn_edit_objprop_{prop['name']}", use_container_width=True,
+                                  on_click=_cb_toggle_edit, args=("objprop", prop['name']))
                     with btn_del:
-                        if st.button("🗑️ Delete", key=f"btn_del_objprop_{prop['name']}", use_container_width=True):
-                            st.session_state[f"confirm_delete_objprop_{prop['name']}"] = True
-                            st.rerun()
+                        st.button("🗑️ Delete", key=f"btn_del_objprop_{prop['name']}", use_container_width=True,
+                                  on_click=_cb_confirm_delete, args=(f"objprop_{prop['name']}",))
 
                     # View details
                     if st.session_state.get(f"view_objprop_{prop['name']}", False):
@@ -789,10 +799,8 @@ def render_properties():
                         st.write(f"**Range:** {prop['range'] or '—'}")
                         st.write(f"**Characteristics:** {', '.join(prop['characteristics']) if prop['characteristics'] else '—'}")
                         st.write(f"**Inverse of:** {prop.get('inverse_of') or '—'}")
-                        if st.button("✏️ Edit", key=f"btn_view_to_edit_objprop_{prop['name']}"):
-                            st.session_state[f"view_objprop_{prop['name']}"] = False
-                            st.session_state[f"edit_objprop_{prop['name']}"] = True
-                            st.rerun()
+                        st.button("✏️ Edit", key=f"btn_view_to_edit_objprop_{prop['name']}",
+                                  on_click=_cb_view_to_edit, args=("objprop", prop['name']))
 
                     if confirm_delete(prop["name"], "property", f"objprop_{prop['name']}"):
                         ont.delete_property(prop["name"])
@@ -876,19 +884,14 @@ def render_properties():
 
                     btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
                     with btn_view:
-                        if st.button("👁️ View", key=f"btn_view_dataprop_{prop['name']}", use_container_width=True):
-                            st.session_state[f"view_dataprop_{prop['name']}"] = not st.session_state.get(f"view_dataprop_{prop['name']}", False)
-                            st.session_state[f"edit_dataprop_{prop['name']}"] = False
-                            st.rerun()
+                        st.button("👁️ View", key=f"btn_view_dataprop_{prop['name']}", use_container_width=True,
+                                  on_click=_cb_toggle_view, args=("dataprop", prop['name']))
                     with btn_edit:
-                        if st.button("✏️ Edit", key=f"btn_edit_dataprop_{prop['name']}", use_container_width=True):
-                            st.session_state[f"edit_dataprop_{prop['name']}"] = not st.session_state.get(f"edit_dataprop_{prop['name']}", False)
-                            st.session_state[f"view_dataprop_{prop['name']}"] = False
-                            st.rerun()
+                        st.button("✏️ Edit", key=f"btn_edit_dataprop_{prop['name']}", use_container_width=True,
+                                  on_click=_cb_toggle_edit, args=("dataprop", prop['name']))
                     with btn_del:
-                        if st.button("🗑️ Delete", key=f"btn_del_dataprop_{prop['name']}", use_container_width=True):
-                            st.session_state[f"confirm_delete_dataprop_{prop['name']}"] = True
-                            st.rerun()
+                        st.button("🗑️ Delete", key=f"btn_del_dataprop_{prop['name']}", use_container_width=True,
+                                  on_click=_cb_confirm_delete, args=(f"dataprop_{prop['name']}",))
 
                     # View details
                     if st.session_state.get(f"view_dataprop_{prop['name']}", False):
@@ -899,10 +902,8 @@ def render_properties():
                         st.write(f"**Domain:** {prop['domain'] or '—'}")
                         st.write(f"**Range (Datatype):** {prop['range']}")
                         st.write(f"**Functional:** {'Yes' if prop['functional'] else 'No'}")
-                        if st.button("✏️ Edit", key=f"btn_view_to_edit_dataprop_{prop['name']}"):
-                            st.session_state[f"view_dataprop_{prop['name']}"] = False
-                            st.session_state[f"edit_dataprop_{prop['name']}"] = True
-                            st.rerun()
+                        st.button("✏️ Edit", key=f"btn_view_to_edit_dataprop_{prop['name']}",
+                                  on_click=_cb_view_to_edit, args=("dataprop", prop['name']))
 
                     if confirm_delete(prop["name"], "property", f"dataprop_{prop['name']}"):
                         ont.delete_property(prop["name"])
@@ -1141,37 +1142,37 @@ def render_individuals():
         if not individuals:
             st.info("No individuals defined yet.")
         else:
-            _active_ind = next((i for i in individuals if st.session_state.get(f"view_ind_{i['name']}", False) or st.session_state.get(f"edit_ind_{i['name']}", False)), None)
+            # Use URI hash for unique widget keys (name may not be unique across classes)
+            def _ind_key(ind):
+                return str(abs(hash(ind['uri'])))[:8]
+
+            _active_ind = next((i for i in individuals if st.session_state.get(f"view_ind_{_ind_key(i)}", False) or st.session_state.get(f"edit_ind_{_ind_key(i)}", False)), None)
             if _active_ind:
                 for i in individuals:
-                    if i["name"] != _active_ind["name"]:
-                        st.session_state.pop(f"view_ind_{i['name']}", None)
-                        st.session_state.pop(f"edit_ind_{i['name']}", None)
+                    if i["uri"] != _active_ind["uri"]:
+                        st.session_state.pop(f"view_ind_{_ind_key(i)}", None)
+                        st.session_state.pop(f"edit_ind_{_ind_key(i)}", None)
 
             for ind in individuals:
                 classes_str = ", ".join(ind["classes"]) if ind["classes"] else "No class"
-                _ind_expanded = st.session_state.get(f"view_ind_{ind['name']}", False) or st.session_state.get(f"edit_ind_{ind['name']}", False)
+                _ik = _ind_key(ind)
+                _ind_expanded = st.session_state.get(f"view_ind_{_ik}", False) or st.session_state.get(f"edit_ind_{_ik}", False)
                 with st.expander(f"👤 **{ind['name']}** ({classes_str})", expanded=_ind_expanded):
                     st.write(f"**URI:** `{ind['uri']}`" if ind['uri'].startswith("http://example.org/") else f"**URI:** {ind['uri']}")
 
                     btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
                     with btn_view:
-                        if st.button("👁️ View", key=f"btn_view_ind_{ind['name']}", use_container_width=True):
-                            st.session_state[f"view_ind_{ind['name']}"] = not st.session_state.get(f"view_ind_{ind['name']}", False)
-                            st.session_state[f"edit_ind_{ind['name']}"] = False
-                            st.rerun()
+                        st.button("👁️ View", key=f"btn_view_ind_{_ik}", use_container_width=True,
+                                  on_click=_cb_toggle_view, args=("ind", _ik))
                     with btn_edit:
-                        if st.button("✏️ Edit", key=f"btn_edit_ind_{ind['name']}", use_container_width=True):
-                            st.session_state[f"edit_ind_{ind['name']}"] = not st.session_state.get(f"edit_ind_{ind['name']}", False)
-                            st.session_state[f"view_ind_{ind['name']}"] = False
-                            st.rerun()
+                        st.button("✏️ Edit", key=f"btn_edit_ind_{_ik}", use_container_width=True,
+                                  on_click=_cb_toggle_edit, args=("ind", _ik))
                     with btn_del:
-                        if st.button("🗑️ Delete", key=f"btn_del_ind_{ind['name']}", use_container_width=True):
-                            st.session_state[f"confirm_delete_ind_{ind['name']}"] = True
-                            st.rerun()
+                        st.button("🗑️ Delete", key=f"btn_del_ind_{_ik}", use_container_width=True,
+                                  on_click=_cb_confirm_delete, args=(f"ind_{_ik}",))
 
                     # View details
-                    if st.session_state.get(f"view_ind_{ind['name']}", False):
+                    if st.session_state.get(f"view_ind_{_ik}", False):
                         st.divider()
                         st.write(f"**Name:** {ind['name']}")
                         st.write(f"**Label:** {ind['label'] or '—'}")
@@ -1183,12 +1184,10 @@ def render_individuals():
                                 st.write(f"  - {prop['property']}: {prop['value']}")
                         else:
                             st.write("**Property Values:** —")
-                        if st.button("✏️ Edit", key=f"btn_view_to_edit_ind_{ind['name']}"):
-                            st.session_state[f"view_ind_{ind['name']}"] = False
-                            st.session_state[f"edit_ind_{ind['name']}"] = True
-                            st.rerun()
+                        st.button("✏️ Edit", key=f"btn_view_to_edit_ind_{_ik}",
+                                  on_click=_cb_view_to_edit, args=("ind", _ik))
 
-                    if confirm_delete(ind["name"], "individual", f"ind_{ind['name']}"):
+                    if confirm_delete(ind["name"], "individual", f"ind_{_ik}"):
                         ont.delete_individual(ind["name"])
                         save_checkpoint("Delete individual")
                         set_flash_message(f"Individual '{ind['name']}' deleted!", "success")
@@ -1209,12 +1208,12 @@ def render_individuals():
                             st.caption("No usages found.")
 
                     # Inline edit form
-                    if st.session_state.get(f"edit_ind_{ind['name']}", False):
+                    if st.session_state.get(f"edit_ind_{_ik}", False):
                         st.divider()
-                        with st.form(f"edit_ind_form_{ind['name']}"):
-                            new_name = st.text_input("Name (URI local part)", value=ind["name"], key=f"ind_name_{ind['name']}")
-                            new_label = st.text_input("Label", value=ind["label"], key=f"ind_lbl_{ind['name']}")
-                            new_comment = st.text_area("Comment", value=ind["comment"], key=f"ind_cmt_{ind['name']}")
+                        with st.form(f"edit_ind_form_{_ik}"):
+                            new_name = st.text_input("Name (URI local part)", value=ind["name"], key=f"ind_name_{_ik}")
+                            new_label = st.text_input("Label", value=ind["label"], key=f"ind_lbl_{_ik}")
+                            new_comment = st.text_area("Comment", value=ind["comment"], key=f"ind_cmt_{_ik}")
 
                             st.write("**Manage Classes:**")
                             current_classes = ind["classes"]
@@ -1224,11 +1223,11 @@ def render_individuals():
                             with col1:
                                 add_class = st.selectbox("Add to Class",
                                     options=["None"] + available_classes,
-                                    key=f"ind_add_cls_{ind['name']}")
+                                    key=f"ind_add_cls_{_ik}")
                             with col2:
                                 remove_class = st.selectbox("Remove from Class",
                                     options=["None"] + current_classes,
-                                    key=f"ind_rem_cls_{ind['name']}")
+                                    key=f"ind_rem_cls_{_ik}")
 
                             if st.form_submit_button("Save Changes"):
                                 # Handle rename first
@@ -1249,7 +1248,7 @@ def render_individuals():
                                     add_class=add_class if add_class != "None" else None,
                                     remove_class=remove_class if remove_class != "None" else None)
                                 save_checkpoint("Update individual")
-                                st.session_state[f"edit_ind_{ind['name']}"] = False
+                                st.session_state[f"edit_ind_{_ik}"] = False
                                 show_message(f"Individual '{current_name}' updated!", "success")
                                 st.rerun()
 
@@ -1925,19 +1924,14 @@ def render_skos_vocabulary():
 
                     btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
                     with btn_view:
-                        if st.button("👁️ View", key=f"btn_view_scheme_{scheme['name']}", use_container_width=True):
-                            st.session_state[f"view_scheme_{scheme['name']}"] = not st.session_state.get(f"view_scheme_{scheme['name']}", False)
-                            st.session_state[f"edit_scheme_{scheme['name']}"] = False
-                            st.rerun()
+                        st.button("👁️ View", key=f"btn_view_scheme_{scheme['name']}", use_container_width=True,
+                                  on_click=_cb_toggle_view, args=("scheme", scheme['name']))
                     with btn_edit:
-                        if st.button("✏️ Edit", key=f"btn_edit_scheme_{scheme['name']}", use_container_width=True):
-                            st.session_state[f"edit_scheme_{scheme['name']}"] = not st.session_state.get(f"edit_scheme_{scheme['name']}", False)
-                            st.session_state[f"view_scheme_{scheme['name']}"] = False
-                            st.rerun()
+                        st.button("✏️ Edit", key=f"btn_edit_scheme_{scheme['name']}", use_container_width=True,
+                                  on_click=_cb_toggle_edit, args=("scheme", scheme['name']))
                     with btn_del:
-                        if st.button("🗑️ Delete", key=f"btn_del_scheme_{scheme['name']}", use_container_width=True):
-                            st.session_state[f"confirm_delete_scheme_{scheme['name']}"] = True
-                            st.rerun()
+                        st.button("🗑️ Delete", key=f"btn_del_scheme_{scheme['name']}", use_container_width=True,
+                                  on_click=_cb_confirm_delete, args=(f"scheme_{scheme['name']}",))
 
                     if st.session_state.get(f"view_scheme_{scheme['name']}", False):
                         st.divider()
@@ -2025,19 +2019,14 @@ def render_skos_vocabulary():
 
                     btn_view, btn_edit, btn_del, _ = st.columns([1, 1, 1, 4])
                     with btn_view:
-                        if st.button("👁️ View", key=f"btn_view_{_ck}", use_container_width=True):
-                            st.session_state[_sk] = not st.session_state.get(_sk, False)
-                            st.session_state[_ek] = False
-                            st.rerun()
+                        st.button("👁️ View", key=f"btn_view_{_ck}", use_container_width=True,
+                                  on_click=_cb_toggle_view, args=("skos", _ck))
                     with btn_edit:
-                        if st.button("✏️ Edit", key=f"btn_edit_{_ck}", use_container_width=True):
-                            st.session_state[_ek] = not st.session_state.get(_ek, False)
-                            st.session_state[_sk] = False
-                            st.rerun()
+                        st.button("✏️ Edit", key=f"btn_edit_{_ck}", use_container_width=True,
+                                  on_click=_cb_toggle_edit, args=("skos", _ck))
                     with btn_del:
-                        if st.button("🗑️ Delete", key=f"btn_del_{_ck}", use_container_width=True):
-                            st.session_state[f"confirm_delete_{_ck}"] = True
-                            st.rerun()
+                        st.button("🗑️ Delete", key=f"btn_del_{_ck}", use_container_width=True,
+                                  on_click=_cb_confirm_delete, args=(_ck,))
 
                     # View details
                     if st.session_state.get(_sk, False):
@@ -2069,10 +2058,8 @@ def render_skos_vocabulary():
                                 show_message(f"Added {rel_type} relation!", "success")
                                 st.rerun()
 
-                        if st.button("✏️ Edit", key=f"btn_v2e_{_ck}"):
-                            st.session_state[_sk] = False
-                            st.session_state[_ek] = True
-                            st.rerun()
+                        st.button("✏️ Edit", key=f"btn_v2e_{_ck}",
+                                  on_click=_cb_view_to_edit, args=("skos", _ck))
 
                     if confirm_delete(concept["name"], "concept", f"c_{_ck}"):
                         ont.delete_concept(concept['name'])
@@ -3339,6 +3326,23 @@ def render_visualization():
                             net.add_edge(s_node, o_node, label=p_label,
                                        title=f"{s_local} → {p_label} → {o_display}",
                                        color="#B0BEC5", arrows="to")
+
+            # Spread parallel edges so they don't overlap
+            from collections import defaultdict as _defaultdict
+            _edge_groups = _defaultdict(list)
+            for edge in net.edges:
+                key = tuple(sorted((edge["from"], edge["to"])))
+                _edge_groups[key].append(edge)
+            for group in _edge_groups.values():
+                if len(group) < 2:
+                    continue
+                for i, edge in enumerate(group):
+                    if i == 0:
+                        edge["smooth"] = {"enabled": True, "type": "curvedCW", "roundness": 0.2}
+                    elif i % 2 == 1:
+                        edge["smooth"] = {"enabled": True, "type": "curvedCCW", "roundness": 0.2 * ((i + 1) // 2)}
+                    else:
+                        edge["smooth"] = {"enabled": True, "type": "curvedCW", "roundness": 0.2 * ((i + 1) // 2)}
 
             # Generate and display the graph using custom component
             try:
