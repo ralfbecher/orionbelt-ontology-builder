@@ -8,7 +8,7 @@ import json
 import traceback
 from datetime import datetime
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 
 GITHUB_ISSUES_URL = "https://github.com/ralfbecher/orionbelt-ontology-builder/issues"
 
