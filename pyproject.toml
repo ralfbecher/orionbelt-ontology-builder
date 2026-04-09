@@ -43,6 +43,9 @@ Demo = "https://orionbelt.streamlit.app"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+filterwarnings = [
+    "ignore:ConjunctiveGraph is deprecated:DeprecationWarning:rdflib",
+]
 
 [build-system]
 requires = ["setuptools>=68.0"]
