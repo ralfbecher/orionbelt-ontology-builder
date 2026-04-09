@@ -1,7 +1,5 @@
 """Tests for delete impact analysis."""
 
-from ontology_manager import OntologyManager
-
 
 def test_class_impact_shows_subclasses(populated_om):
     impact = populated_om.get_delete_impact("Person", "class")

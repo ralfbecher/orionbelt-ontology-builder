@@ -1,8 +1,8 @@
 """Tests for merge strategies and conflict detection."""
 
 import pytest
-from rdflib import Graph, URIRef, Literal
-from rdflib.namespace import RDF, RDFS, OWL
+from rdflib import Graph, URIRef
+from rdflib.namespace import RDFS
 from ontology_manager import (
     OntologyManager, IMPORT_REPLACE, IMPORT_MERGE, IMPORT_MERGE_OVERWRITE,
 )
@@ -55,7 +55,6 @@ class TestReplaceStrategy:
 
 class TestMergeStrategy:
     def test_merge_adds_without_losing_existing(self, base_om):
-        before = len(base_om.graph)
         result = base_om.merge_from_string(
             SECOND_ONT_TTL, format="turtle", strategy=IMPORT_MERGE
         )
@@ -78,7 +77,6 @@ class TestMergeStrategy:
 
     def test_merge_empty_graph_is_noop(self, base_om):
         before = len(base_om.graph)
-        empty_ttl = ""
         # An empty string may cause parse errors; use minimal valid TTL
         base_om.merge_from_string(
             "@prefix owl: <http://www.w3.org/2002/07/owl#> .\n",

@@ -1,8 +1,5 @@
 """Tests for annotation operations, including language-tagged and typed literals."""
 
-from rdflib import Literal, RDFS
-from rdflib.namespace import SKOS
-
 
 def test_add_annotation(populated_om):
     populated_om.add_annotation("Person", "label", "Persona", lang="es")

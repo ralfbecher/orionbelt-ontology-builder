@@ -2534,7 +2534,6 @@ class OntologyManager:
     def _summarize_changes(self, diff: Dict[str, Any]) -> List[str]:
         """Generate plain-language summaries for each changed resource."""
         summaries = []
-        type_preds = {str(RDF.type)}
 
         for res in diff["modified_resources"]:
             name = res["name"]

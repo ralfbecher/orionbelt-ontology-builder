@@ -4,7 +4,6 @@ and managing OWL ontologies.
 """
 
 import streamlit as st
-import json
 import traceback
 from datetime import datetime
 
@@ -2354,7 +2353,7 @@ def render_import_export():
                         if selected_strategy == IMPORT_REPLACE:
                             ont.load_from_string(content, format=format_)
                         else:
-                            result = ont.merge_from_string(
+                            ont.merge_from_string(
                                 content, format=format_, strategy=selected_strategy
                             )
                         st.session_state.ontology = ont
@@ -3261,7 +3260,7 @@ def render_visualization():
 
             # Add raw RDF triples for visible nodes
             if show_triples and node_count < max_nodes:
-                from rdflib import URIRef as _URIRef, Literal as _Literal, BNode as _BNode
+                from rdflib import URIRef as _URIRef, Literal as _Literal
 
                 # Build URI → node_id mapping from all visible nodes
                 _uri_to_node = {}

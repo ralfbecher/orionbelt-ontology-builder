@@ -1,7 +1,5 @@
 """Tests for class CRUD operations."""
 
-from rdflib import RDF, RDFS, OWL, Literal
-
 
 def test_add_class(om):
     om.add_class("Animal", label="Animal")

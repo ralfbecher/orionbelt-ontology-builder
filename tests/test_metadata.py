@@ -1,6 +1,6 @@
 """Tests for ontology metadata operations."""
 
-from rdflib import RDFS, Literal
+from rdflib import RDFS
 from rdflib.namespace import DCTERMS, OWL
 
 
