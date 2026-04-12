@@ -3054,7 +3054,6 @@ def render_visualization():
 
             # Add data properties (connected to displayed classes, or standalone if no domain)
             if show_data_props and data_props and node_count < max_nodes:
-                added_datatypes = set()
                 for prop in data_props:
                     if node_count >= max_nodes:
                         break
@@ -3081,21 +3080,6 @@ def render_visualization():
                     if prop["domain"]:
                         net.add_edge(prop["domain"], f"dprop_{prop['name']}",
                                    title=f"Domain:\n{prop['name']} has domain {prop['domain']}",
-                                   color="#CE93D8", arrows="to", dashes=True)
-
-                    # Add range as a literal type node
-                    if prop["range"] and prop["range"] not in added_datatypes and node_count < max_nodes:
-                        range_node_id = f"dtype_{prop['range']}"
-                        net.add_node(range_node_id, label=prop["range"],
-                                   title=f"Datatype: {prop['range']}",
-                                   color={"background": "#607D8B", "border": "#455A64"},
-                                   shape="box", size=10, font={"color": "#f0f0f0"})
-                        added_datatypes.add(prop["range"])
-                        node_count += 1
-
-                    if prop["range"]:
-                        net.add_edge(f"dprop_{prop['name']}", f"dtype_{prop['range']}",
-                                   title=f"Range:\n{prop['name']} has range {prop['range']}",
                                    color="#CE93D8", arrows="to", dashes=True)
 
             # Add individuals
