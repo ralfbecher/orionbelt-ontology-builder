@@ -7,7 +7,7 @@ import streamlit as st
 import traceback
 from datetime import datetime
 
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 
 GITHUB_ISSUES_URL = "https://github.com/ralfbecher/orionbelt-ontology-builder/issues"
 
