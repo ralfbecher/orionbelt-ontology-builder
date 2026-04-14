@@ -1835,14 +1835,6 @@ class OntologyManager:
                         })
         return relations
 
-    def get_all_relations(self) -> Dict[str, List[Dict[str, str]]]:
-        """Get all relations organized by type."""
-        return {
-            "class_relations": self.get_class_relations(),
-            "property_relations": self.get_property_relations(),
-            "individual_relations": self.get_individual_relations()
-        }
-
     # ==================== ADVANCED OWL FEATURES ====================
 
     def add_property_chain(self, property_name: str, chain_properties: List[str]):
@@ -2303,10 +2295,6 @@ class OntologyManager:
     def export_to_string(self, format: str = "turtle") -> str:
         """Export ontology to a string."""
         return self.graph.serialize(format=format)
-
-    def export_to_file(self, file_path: str, format: str = "turtle"):
-        """Export ontology to a file."""
-        self.graph.serialize(destination=file_path, format=format)
 
     # ==================== SEARCH ====================
 

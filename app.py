@@ -7,7 +7,7 @@ import streamlit as st
 import traceback
 from datetime import datetime
 
-APP_VERSION = "1.1.2"
+APP_VERSION = "1.1.3"
 
 GITHUB_ISSUES_URL = "https://github.com/ralfbecher/orionbelt-ontology-builder/issues"
 
@@ -226,59 +226,6 @@ def build_class_options(classes: list, include_none: bool = False) -> tuple:
     options.extend(items)
     return options, lookup
 
-
-def build_property_options(properties: list, include_none: bool = False) -> tuple:
-    """Build property dropdown options with 'Label (name)' format, sorted by display text.
-
-    Returns:
-        tuple: (display_options, name_lookup_dict)
-    """
-    options = []
-    lookup = {}
-
-    # Build display strings and sort
-    items = []
-    for p in properties:
-        display = format_label_name(p["name"], p.get("label"))
-        items.append(display)
-        lookup[display] = p["name"]
-
-    # Sort alphabetically by display text (case-insensitive)
-    items.sort(key=lambda x: x.lower())
-
-    if include_none:
-        options.append("None")
-        lookup["None"] = None
-
-    options.extend(items)
-    return options, lookup
-
-
-def build_individual_options(individuals: list, include_none: bool = False) -> tuple:
-    """Build individual dropdown options with 'Label (name)' format, sorted by display text.
-
-    Returns:
-        tuple: (display_options, name_lookup_dict)
-    """
-    options = []
-    lookup = {}
-
-    # Build display strings and sort
-    items = []
-    for i in individuals:
-        display = format_label_name(i["name"], i.get("label"))
-        items.append(display)
-        lookup[display] = i["name"]
-
-    # Sort alphabetically by display text (case-insensitive)
-    items.sort(key=lambda x: x.lower())
-
-    if include_none:
-        options.append("None")
-        lookup["None"] = None
-
-    options.extend(items)
-    return options, lookup
 
 
 def render_dashboard():
@@ -1411,7 +1358,7 @@ def render_restrictions():
                     st.write(f"**Applied to Classes:** {', '.join(rest['applied_to'])}")
 
                     if rest['applied_to']:
-                        if st.button(f"Delete", key=f"del_rest_{i}"):
+                        if st.button("Delete", key=f"del_rest_{i}"):
                             ont.delete_restriction(rest['applied_to'][0],
                                                   rest['property'],
                                                   rest['type'])
@@ -2344,7 +2291,7 @@ def render_import_export():
                 st.metric("Total Triples", incoming_stats["total_triples"])
 
             # Apply / Cancel buttons (compact, above the change report)
-            col_apply, col_cancel, col_spacer = st.columns([1, 1, 4])
+            col_apply, col_cancel, _ = st.columns([1, 1, 4])
             with col_apply:
                 if st.button("Apply Import", type="primary"):
                     try:
