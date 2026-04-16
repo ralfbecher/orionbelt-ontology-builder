@@ -2869,8 +2869,14 @@ def render_visualization():
 
         # Class filter
         all_class_names = [c["name"] for c in classes] if classes else []
+        all_class_set = set(all_class_names)
         if "_viz_cfg_selected_classes" not in st.session_state:
             st.session_state["_viz_cfg_selected_classes"] = all_class_names
+        else:
+            valid = [c for c in st.session_state["_viz_cfg_selected_classes"] if c in all_class_set]
+            if not valid and all_class_names:
+                valid = all_class_names
+            st.session_state["_viz_cfg_selected_classes"] = valid
         st.session_state["viz_selected_classes"] = st.session_state["_viz_cfg_selected_classes"]
         with st.expander("Filter Classes", expanded=False):
             selected_classes = st.multiselect(
@@ -2883,7 +2889,7 @@ def render_visualization():
 
         # Store graph settings in session state for caching
         selected_classes_key = "_".join(sorted(selected_classes)) if selected_classes else "none"
-        _graph_ver = 14  # Bump to invalidate cached graph data after code changes
+        _graph_ver = 15  # Bump to invalidate cached graph data after code changes
         graph_key = f"v{_graph_ver}_{show_classes}_{show_properties}_{show_data_props}_{show_annotations}_{show_individuals}_{show_ind_edges}_{show_skos}_{show_triples}_{height}_{node_spacing}_{highlight_issues}_{hash(selected_classes_key)}"
         if "last_graph_key" not in st.session_state:
             st.session_state.last_graph_key = None
