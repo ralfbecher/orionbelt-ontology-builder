@@ -13,13 +13,6 @@ def base_om():
     m.add_class("Dog", parent="Animal", label="Dog")
     return m
 
-
-def _make_graph_from(ttl: str) -> Graph:
-    g = Graph()
-    g.parse(data=ttl, format="turtle")
-    return g
-
-
 class TestCompareGraphs:
     def test_identical_graphs_produce_empty_diff(self, base_om):
         other = Graph()

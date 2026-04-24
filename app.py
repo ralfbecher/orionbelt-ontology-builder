@@ -69,11 +69,6 @@ st.markdown("""
     [data-testid="stCustomComponentV1"] {
         margin-bottom: -1rem !important;
     }
-    /* Segmented control: logo blue for active segment */
-    [data-testid="stButtonGroup"] button[aria-checked="true"] {
-        background-color: #0D2B7A !important;
-        color: white !important;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -98,15 +93,12 @@ def init_session_state():
         except ImportError as e:
             st.error(f"Failed to load UndoManager: {e}")
             st.session_state.undo_manager = None
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
     if "flash_message" not in st.session_state:
         st.session_state.flash_message = None
     if "error_log" not in st.session_state:
         st.session_state.error_log = []
-    # On first run with empty ontology, start on Import/Export page
-    if "initial_nav_set" not in st.session_state:
-        st.session_state.initial_nav_set = True
+    # On first run with empty ontology, start on Import/Export page.
+    if "nav_radio" not in st.session_state:
         ont = st.session_state.ontology
         _s = ont.get_statistics()
         if _s["classes"] == 0 and _s["object_properties"] == 0 and _s["data_properties"] == 0 and _s.get("concepts", 0) == 0:
@@ -184,15 +176,13 @@ def format_label_name(name: str, label: str) -> str:
 
 
 def _cb_toggle_view(prefix, name):
-    """Callback: toggle view panel, close edit."""
-    vk = f"view_{prefix}_{name}"
-    st.session_state[vk] = not st.session_state.get(vk, False)
+    """Callback: open view panel, close edit."""
+    st.session_state[f"view_{prefix}_{name}"] = True
     st.session_state[f"edit_{prefix}_{name}"] = False
 
 def _cb_toggle_edit(prefix, name):
-    """Callback: toggle edit panel, close view."""
-    ek = f"edit_{prefix}_{name}"
-    st.session_state[ek] = not st.session_state.get(ek, False)
+    """Callback: open edit panel, close view."""
+    st.session_state[f"edit_{prefix}_{name}"] = True
     st.session_state[f"view_{prefix}_{name}"] = False
 
 def _cb_view_to_edit(prefix, name):
@@ -3652,7 +3642,10 @@ def main():
         st.rerun()
 
     # Handle search navigation
-    nav_override = st.session_state.pop("search_navigate_to", None)
+    nav_override = None
+    if "search_navigate_to" in st.session_state:
+        nav_override = st.session_state.search_navigate_to
+        del st.session_state.search_navigate_to
     if nav_override and nav_override in pages:
         st.session_state["nav_radio"] = nav_override
     selection = st.sidebar.radio("Navigation", list(pages.keys()), key="nav_radio")

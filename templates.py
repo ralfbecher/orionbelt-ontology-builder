@@ -1,6 +1,5 @@
 """Built-in ontology templates for bootstrapping new ontologies."""
 
-import os
 from pathlib import Path
 
 TEMPLATES = [
