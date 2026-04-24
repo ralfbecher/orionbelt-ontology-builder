@@ -1913,7 +1913,7 @@ class OntologyManager:
                         try:
                             members = list(Collection(self.graph, obj))
                             expr["members"] = [self._local_name(m) for m in members if isinstance(m, URIRef)]
-                        except:
+                        except Exception:
                             pass
 
                     if expr["members"]:
@@ -1940,7 +1940,7 @@ class OntologyManager:
                 try:
                     members = list(Collection(self.graph, members_list))
                     all_diffs.append([self._local_name(m) for m in members if isinstance(m, URIRef)])
-                except:
+                except Exception:
                     pass
         return all_diffs
 
@@ -1967,7 +1967,7 @@ class OntologyManager:
                         "class": subj_name,
                         "properties": [self._local_name(p) for p in props if isinstance(p, URIRef)]
                     })
-                except:
+                except Exception:
                     pass
         return keys
 
@@ -1991,7 +1991,7 @@ class OntologyManager:
                         "class": self._local_name(subj),
                         "members": [self._local_name(m) for m in members if isinstance(m, URIRef)]
                     })
-                except:
+                except Exception:
                     pass
         return unions
 

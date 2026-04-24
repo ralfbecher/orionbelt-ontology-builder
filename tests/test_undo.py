@@ -76,7 +76,8 @@ def test_multiple_undo_redo(populated_om):
     populated_om.add_class("Step3")
     um.checkpoint("Step3")
 
-    names = lambda: [c["name"] for c in populated_om.get_classes()]
+    def names():
+        return [c["name"] for c in populated_om.get_classes()]
 
     assert "Step3" in names()
     um.undo()

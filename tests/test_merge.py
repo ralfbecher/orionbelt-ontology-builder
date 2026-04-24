@@ -96,7 +96,7 @@ class TestMergeOverwriteStrategy:
         # The label should be overwritten to the incoming value
         person_uri = URIRef("http://test.org/ont#Person")
         labels = list(base_om.graph.objects(person_uri, RDFS.label))
-        label_strs = [str(l) for l in labels]
+        label_strs = [str(label) for label in labels]
         assert "Human Being" in label_strs
         assert result["conflicts_resolved"] > 0
 

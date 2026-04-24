@@ -1,5 +1,7 @@
 """Built-in ontology templates for bootstrapping new ontologies."""
 
+from pathlib import Path
+
 TEMPLATES = [
     {
         "name": "Organization",
@@ -329,3 +331,70 @@ def get_template(name: str) -> dict:
 def render_template(template: dict, base_uri: str) -> str:
     """Render a template's Turtle with the given base URI."""
     return template["turtle"].replace("{base_uri}", base_uri)
+
+
+SAMPLES_DIR = Path(__file__).parent / "samples"
+
+UPPER_ONTOLOGIES = [
+    {
+        "name": "gist (Semantic Arts)",
+        "version": "14.1.0",
+        "description": (
+            "A minimalist upper ontology for the enterprise by Semantic Arts. "
+            "Covers ~100 foundational classes (Event, Person, Organization, "
+            "Agreement, Specification, etc.) and ~100 properties. "
+            "Licensed under CC BY 4.0."
+        ),
+        "url": "https://www.semanticarts.com/gist/",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "attribution": "Semantic Arts, Inc.",
+        "modules": [
+            {
+                "name": "gistCore",
+                "file": "gist/gistCore14.1.0.ttl",
+                "description": "Main ontology with all classes, properties, and restrictions",
+                "required": True,
+            },
+            {
+                "name": "gistRdfsAnnotations",
+                "file": "gist/gistRdfsAnnotations14.1.0.ttl",
+                "description": "rdfs:label and rdfs:comment annotations for compatibility",
+                "required": False,
+                "default": True,
+            },
+            {
+                "name": "gistSubClassAssertions",
+                "file": "gist/gistSubClassAssertions14.1.0.ttl",
+                "description": "Materialized subclass inferences (useful without a DL reasoner)",
+                "required": False,
+                "default": True,
+            },
+            {
+                "name": "gistMediaTypes",
+                "file": "gist/gistMediaTypes14.1.0.ttl",
+                "description": "Common internet media type instances",
+                "required": False,
+                "default": False,
+            },
+        ],
+    },
+]
+
+
+def get_upper_ontology_names() -> list:
+    """Return list of upper ontology names."""
+    return [o["name"] for o in UPPER_ONTOLOGIES]
+
+
+def get_upper_ontology(name: str) -> dict:
+    """Return an upper ontology definition by name, or None if not found."""
+    for o in UPPER_ONTOLOGIES:
+        if o["name"] == name:
+            return o
+    return None
+
+
+def load_upper_ontology_module(module: dict) -> str:
+    """Load a module's Turtle content from file."""
+    file_path = SAMPLES_DIR / module["file"]
+    return file_path.read_text(encoding="utf-8")

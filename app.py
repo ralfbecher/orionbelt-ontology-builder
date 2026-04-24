@@ -7,7 +7,7 @@ import streamlit as st
 import traceback
 from datetime import datetime
 
-APP_VERSION = "1.1.3"
+APP_VERSION = "1.2.0"
 
 GITHUB_ISSUES_URL = "https://github.com/ralfbecher/orionbelt-ontology-builder/issues"
 
@@ -93,15 +93,12 @@ def init_session_state():
         except ImportError as e:
             st.error(f"Failed to load UndoManager: {e}")
             st.session_state.undo_manager = None
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
     if "flash_message" not in st.session_state:
         st.session_state.flash_message = None
     if "error_log" not in st.session_state:
         st.session_state.error_log = []
-    # On first run with empty ontology, start on Import/Export page
-    if "initial_nav_set" not in st.session_state:
-        st.session_state.initial_nav_set = True
+    # On first run with empty ontology, start on Import/Export page.
+    if "nav_radio" not in st.session_state:
         ont = st.session_state.ontology
         _s = ont.get_statistics()
         if _s["classes"] == 0 and _s["object_properties"] == 0 and _s["data_properties"] == 0 and _s.get("concepts", 0) == 0:
@@ -179,15 +176,13 @@ def format_label_name(name: str, label: str) -> str:
 
 
 def _cb_toggle_view(prefix, name):
-    """Callback: toggle view panel, close edit."""
-    vk = f"view_{prefix}_{name}"
-    st.session_state[vk] = not st.session_state.get(vk, False)
+    """Callback: open view panel, close edit."""
+    st.session_state[f"view_{prefix}_{name}"] = True
     st.session_state[f"edit_{prefix}_{name}"] = False
 
 def _cb_toggle_edit(prefix, name):
-    """Callback: toggle edit panel, close view."""
-    ek = f"edit_{prefix}_{name}"
-    st.session_state[ek] = not st.session_state.get(ek, False)
+    """Callback: open edit panel, close view."""
+    st.session_state[f"edit_{prefix}_{name}"] = True
     st.session_state[f"view_{prefix}_{name}"] = False
 
 def _cb_view_to_edit(prefix, name):
@@ -393,9 +388,12 @@ def render_classes():
     classes = ont.get_classes()
     class_names = [c["name"] for c in classes]
 
-    tab1, tab2, tab3, tab4 = st.tabs(["View Classes", "Add Class", "Edit/Delete Class", "Bulk Operations"])
+    _cls_tab = st.segmented_control("Section", ["View Classes", "Add Class", "Edit/Delete Class", "Bulk Operations"],
+                                    default="View Classes", key="cls_active_tab", label_visibility="collapsed")
+    if not _cls_tab:
+        _cls_tab = "View Classes"
 
-    with tab1:
+    if _cls_tab == "View Classes":
         if not classes:
             st.info("No classes defined yet. Add a class to get started.")
         else:
@@ -498,7 +496,7 @@ def render_classes():
                 })
             st.dataframe(class_data, width="stretch")
 
-    with tab2:
+    if _cls_tab == "Add Class":
         st.subheader("Add New Class")
 
         with st.form("add_class_form"):
@@ -522,7 +520,7 @@ def render_classes():
                     show_message(f"Class '{name}' added successfully!", "success")
                     st.rerun()
 
-    with tab3:
+    if _cls_tab == "Edit/Delete Class":
         st.subheader("Edit or Delete Class")
 
         if not classes:
@@ -595,7 +593,7 @@ def render_classes():
                     if not usages["inbound"] and not usages["outbound"]:
                         st.caption("No usages found.")
 
-    with tab4:
+    if _cls_tab == "Bulk Operations":
         import pandas as pd
         bulk_op = st.radio("Operation", ["Add", "Edit", "Delete"], horizontal=True, key="bulk_class_op")
 
@@ -687,12 +685,13 @@ def render_properties():
     obj_prop_names = [p["name"] for p in object_props]
     data_prop_names = [p["name"] for p in data_props]
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "Object Properties", "Data Properties",
-        "Add Object Property", "Add Data Property", "Bulk Operations"
-    ])
+    _prop_tab = st.segmented_control("Section", ["Object Properties", "Data Properties",
+                                     "Add Object Property", "Add Data Property", "Bulk Operations"],
+                                    default="Object Properties", key="prop_active_tab", label_visibility="collapsed")
+    if not _prop_tab:
+        _prop_tab = "Object Properties"
 
-    with tab1:
+    if _prop_tab == "Object Properties":
         st.subheader("Object Properties")
         if not object_props:
             st.info("No object properties defined yet.")
@@ -794,7 +793,7 @@ def render_properties():
                                 show_message(f"Property '{current_name}' updated!", "success")
                                 st.rerun()
 
-    with tab2:
+    if _prop_tab == "Data Properties":
         st.subheader("Data Properties")
         if not data_props:
             st.info("No data properties defined yet.")
@@ -898,7 +897,7 @@ def render_properties():
                                 show_message(f"Property '{current_name}' updated!", "success")
                                 st.rerun()
 
-    with tab3:
+    if _prop_tab == "Add Object Property":
         st.subheader("Add Object Property")
 
         with st.form("add_obj_prop_form"):
@@ -954,7 +953,7 @@ def render_properties():
                     show_message(f"Object property '{name}' added!", "success")
                     st.rerun()
 
-    with tab4:
+    if _prop_tab == "Add Data Property":
         st.subheader("Add Data Property")
 
         with st.form("add_data_prop_form"):
@@ -992,7 +991,7 @@ def render_properties():
                     show_message(f"Data property '{name}' added!", "success")
                     st.rerun()
 
-    with tab5:
+    if _prop_tab == "Bulk Operations":
         import pandas as pd
         bulk_op = st.radio("Operation", ["Add", "Edit", "Delete"], horizontal=True, key="bulk_prop_op")
 
@@ -1082,9 +1081,12 @@ def render_individuals():
     object_props = ont.get_object_properties()
     data_props = ont.get_data_properties()
 
-    tab1, tab2, tab3, tab4 = st.tabs(["View Individuals", "Add Individual", "Add Property Value", "Bulk Operations"])
+    _ind_tab = st.segmented_control("Section", ["View Individuals", "Add Individual", "Add Property Value", "Bulk Operations"],
+                                    default="View Individuals", key="ind_active_tab", label_visibility="collapsed")
+    if not _ind_tab:
+        _ind_tab = "View Individuals"
 
-    with tab1:
+    if _ind_tab == "View Individuals":
         if not individuals:
             st.info("No individuals defined yet.")
         else:
@@ -1198,7 +1200,7 @@ def render_individuals():
                                 show_message(f"Individual '{current_name}' updated!", "success")
                                 st.rerun()
 
-    with tab2:
+    if _ind_tab == "Add Individual":
         st.subheader("Add Individual")
 
         if not class_names:
@@ -1222,7 +1224,7 @@ def render_individuals():
                         show_message(f"Individual '{name}' added!", "success")
                         st.rerun()
 
-    with tab3:
+    if _ind_tab == "Add Property Value":
         st.subheader("Add Property Value to Individual")
 
         if not individuals:
@@ -1259,7 +1261,7 @@ def render_individuals():
                         show_message(f"Property value added to '{individual}'!", "success")
                         st.rerun()
 
-    with tab4:
+    if _ind_tab == "Bulk Operations":
         import pandas as pd
         bulk_op = st.radio("Operation", ["Add", "Edit", "Delete"], horizontal=True, key="bulk_ind_op")
 
@@ -1342,9 +1344,12 @@ def render_restrictions():
     all_props = [p["name"] for p in object_props] + [p["name"] for p in data_props]
     restrictions = ont.get_restrictions()
 
-    tab1, tab2 = st.tabs(["View Restrictions", "Add Restriction"])
+    _rest_tab = st.segmented_control("Section", ["View Restrictions", "Add Restriction"],
+                                     default="View Restrictions", key="rest_active_tab", label_visibility="collapsed")
+    if not _rest_tab:
+        _rest_tab = "View Restrictions"
 
-    with tab1:
+    if _rest_tab == "View Restrictions":
         if not restrictions:
             st.info("No restrictions defined yet.")
         else:
@@ -1366,7 +1371,7 @@ def render_restrictions():
                             show_message("Restriction deleted!", "success")
                             st.rerun()
 
-    with tab2:
+    if _rest_tab == "Add Restriction":
         st.subheader("Add Restriction")
 
         if not class_names:
@@ -1428,11 +1433,12 @@ def render_relations():
     individuals = ont.get_individuals()
     ind_names = [i["name"] for i in individuals]
 
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "View Relations", "Class Relations", "Property Relations", "Individual Relations"
-    ])
+    _rel_tab = st.segmented_control("Section", ["View Relations", "Class Relations", "Property Relations", "Individual Relations"],
+                                    default="View Relations", key="rel_active_tab", label_visibility="collapsed")
+    if not _rel_tab:
+        _rel_tab = "View Relations"
 
-    with tab1:
+    if _rel_tab == "View Relations":
         st.subheader("All Relations")
 
         # Class relations
@@ -1502,7 +1508,7 @@ def render_relations():
         else:
             st.info("No individual relations defined.")
 
-    with tab2:
+    if _rel_tab == "Class Relations":
         st.subheader("Add Class Relation")
 
         if len(class_names) < 2:
@@ -1538,7 +1544,7 @@ def render_relations():
                         show_message(f"Relation added: {class1} {relation_type} {class2}", "success")
                         st.rerun()
 
-    with tab3:
+    if _rel_tab == "Property Relations":
         st.subheader("Add Property Relation")
 
         if len(all_prop_names) < 2:
@@ -1574,7 +1580,7 @@ def render_relations():
                         show_message(f"Relation added: {prop1} {relation_type} {prop2}", "success")
                         st.rerun()
 
-    with tab4:
+    if _rel_tab == "Individual Relations":
         st.subheader("Add Individual Relation")
 
         if len(ind_names) < 2:
@@ -1643,9 +1649,12 @@ def render_annotations():
     # Sort all resources by display text
     all_resources.sort(key=lambda r: r["display"].lower())
 
-    tab1, tab2, tab3 = st.tabs(["View Annotations", "Add Annotation", "Bulk Edit"])
+    _ann_tab = st.segmented_control("Section", ["View Annotations", "Add Annotation", "Bulk Edit"],
+                                    default="View Annotations", key="ann_active_tab", label_visibility="collapsed")
+    if not _ann_tab:
+        _ann_tab = "View Annotations"
 
-    with tab1:
+    if _ann_tab == "View Annotations":
         if not all_resources:
             st.info("No resources to annotate. Create classes, properties, or individuals first.")
         else:
@@ -1703,7 +1712,7 @@ def render_annotations():
                                     show_message("Annotation deleted!", "success")
                                     st.rerun()
 
-    with tab2:
+    if _ann_tab == "Add Annotation":
         st.subheader("Add Annotation")
 
         if not all_resources:
@@ -1781,7 +1790,7 @@ def render_annotations():
                         show_message("Annotation added!", "success")
                         st.rerun()
 
-    with tab3:
+    if _ann_tab == "Bulk Edit":
         st.subheader("Bulk Edit Annotations")
         st.caption("Edit annotations in a spreadsheet. Add rows to create, mark action as 'delete' to remove.")
 
@@ -1853,11 +1862,12 @@ def render_skos_vocabulary():
     # Clean up unused navigation flag
     st.session_state.pop("_skos_navigate_to_concept", None)
 
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "Concepts", "Concept Schemes", "Concept Hierarchy", "SKOS Validation"
-    ])
+    _skos_tab = st.segmented_control("Section", ["Concepts", "Concept Schemes", "Concept Hierarchy", "SKOS Validation"],
+                                     default="Concepts", key="skos_active_tab", label_visibility="collapsed")
+    if not _skos_tab:
+        _skos_tab = "Concepts"
 
-    with tab2:
+    if _skos_tab == "Concept Schemes":
         st.subheader("Concept Schemes")
         if not schemes:
             st.info("No concept schemes defined yet.")
@@ -1922,7 +1932,7 @@ def render_skos_vocabulary():
                     show_message(f"Scheme '{s_name}' added!", "success")
                     st.rerun()
 
-    with tab1:
+    if _skos_tab == "Concepts":
         st.subheader("Concepts")
         if not concepts:
             st.info("No concepts defined yet.")
@@ -2086,7 +2096,7 @@ def render_skos_vocabulary():
                     show_message(f"Concept '{c_name}' added!", "success")
                     st.rerun()
 
-    with tab3:
+    if _skos_tab == "Concept Hierarchy":
         st.subheader("Concept Hierarchy")
         if not concepts:
             st.info("No concepts to display.")
@@ -2116,7 +2126,7 @@ def render_skos_vocabulary():
             if not roots and hierarchy:
                 st.warning("All concepts have broader concepts — possible cycle.")
 
-    with tab4:
+    if _skos_tab == "SKOS Validation":
         st.subheader("SKOS Validation")
         if st.button("Run SKOS Validation", key="run_skos_validation"):
             issues = ont.validate_skos()
@@ -2138,9 +2148,13 @@ def render_import_export():
 
     ont = st.session_state.ontology
 
-    tab1, tab2, tab3, tab4 = st.tabs(["Import", "Export", "New Ontology", "Templates"])
+    _ie_tabs = ["Import", "Export", "New Ontology", "Templates", "Upper Ontologies"]
+    _ie_tab = st.segmented_control("Section", _ie_tabs, default="Import",
+                                   key="ie_active_tab", label_visibility="collapsed")
+    if not _ie_tab:
+        _ie_tab = "Import"
 
-    with tab1:
+    if _ie_tab == "Import":
         st.subheader("Import Ontology")
 
         # Initialize import preview state
@@ -2156,6 +2170,19 @@ def render_import_export():
         _ont_is_empty = (_stats["classes"] == 0 and _stats["object_properties"] == 0
                          and _stats["data_properties"] == 0 and _stats["individuals"] == 0
                          and _stats.get("concepts", 0) == 0)
+
+        if st.session_state.get("_ontology_cleared"):
+            st.success(st.session_state.pop("_ontology_cleared"))
+
+        with st.popover("Clear Ontology", disabled=_ont_is_empty):
+            st.warning("This will delete all classes, properties, individuals, and triples.")
+            if st.button("Confirm Clear", type="primary", key="clear_ontology_btn"):
+                base_uri = str(ont.namespace)
+                st.session_state.ontology = get_ontology_manager_class()(base_uri=base_uri)
+                from ontology_manager import UndoManager
+                st.session_state.undo_manager = UndoManager(st.session_state.ontology)
+                st.session_state["_ontology_cleared"] = "Ontology cleared!"
+                st.rerun()
 
         def _direct_import(content, format_):
             """Import directly without preview (for empty ontologies)."""
@@ -2377,7 +2404,7 @@ def render_import_export():
                 mime="text/markdown",
             )
 
-    with tab2:
+    if _ie_tab == "Export":
         st.subheader("Export Ontology")
 
         format_options = {
@@ -2414,7 +2441,7 @@ def render_import_export():
             except Exception as e:
                 show_message(f"Error exporting ontology: {str(e)}", "error")
 
-    with tab3:
+    if _ie_tab == "New Ontology":
         st.subheader("Create New Ontology")
 
         st.warning("This will clear the current ontology. Make sure to export first if needed.")
@@ -2442,11 +2469,32 @@ def render_import_export():
                     show_message("New ontology created!", "success")
                     st.rerun()
 
-    with tab4:
+    if _ie_tab == "Templates":
+        from templates import (get_template_names, get_template, render_template)
+
+        def _on_apply_template():
+            selected = st.session_state.template_select
+            mode = st.session_state.template_apply_mode
+            tmpl = get_template(selected)
+            base_uri = str(ont.namespace)
+            rendered = render_template(tmpl, base_uri)
+            if mode == "Replace current":
+                ont.load_from_string(rendered, "turtle")
+            else:
+                ont.merge_from_string(rendered, "turtle")
+            save_checkpoint(f"Apply template: {selected}")
+            s = ont.get_statistics()
+            st.session_state["_template_msg"] = (
+                f"Template '{selected}' applied! "
+                f"— {s['classes']} classes, {s['object_properties']} obj props, "
+                f"{s['data_properties']} data props, {s['content_triples']} triples"
+            )
+
         st.subheader("Apply Template")
         st.caption("Bootstrap your ontology from a built-in template.")
 
-        from templates import get_template_names, get_template, render_template
+        if "_template_msg" in st.session_state:
+            st.success(st.session_state.pop("_template_msg"))
 
         template_names = get_template_names()
         selected_template = st.selectbox("Select Template", template_names, key="template_select")
@@ -2460,20 +2508,95 @@ def render_import_export():
                 rendered = render_template(tmpl, base_uri)
                 st.code(rendered, language="turtle")
 
-            apply_mode = st.radio("Apply Mode",
-                                  ["Merge into current", "Replace current"],
-                                  horizontal=True, key="template_apply_mode")
+            st.radio("Apply Mode",
+                     ["Merge into current", "Replace current"],
+                     horizontal=True, key="template_apply_mode")
 
-            if st.button("Apply Template", type="primary", key="apply_template_btn"):
-                base_uri = str(ont.namespace)
-                rendered = render_template(tmpl, base_uri)
-                if apply_mode == "Replace current":
-                    ont.load_from_string(rendered, "turtle")
-                else:
-                    ont.merge_from_string(rendered, "turtle")
-                save_checkpoint(f"Apply template: {selected_template}")
-                show_message(f"Template '{selected_template}' applied!", "success")
-                st.rerun()
+            st.button("Apply Template", type="primary", key="apply_template_btn",
+                      on_click=_on_apply_template)
+
+    if _ie_tab == "Upper Ontologies":
+        from templates import (get_upper_ontology_names, get_upper_ontology,
+                               load_upper_ontology_module)
+
+        def _on_load_upper_ontology(upper):
+            selected_modules = []
+            for mod in upper["modules"]:
+                if st.session_state.get(f"upper_mod_{mod['name']}", False):
+                    selected_modules.append(mod)
+
+            if not selected_modules:
+                st.session_state["_upper_onto_err"] = "Select at least one module."
+                return
+
+            try:
+                mode = st.session_state.upper_apply_mode
+                first = True
+                for mod in selected_modules:
+                    content = load_upper_ontology_module(mod)
+                    if first and mode == "Replace current":
+                        ont.load_from_string(content, "turtle")
+                        first = False
+                    else:
+                        ont.merge_from_string(content, "turtle")
+                mod_names = ", ".join(m["name"] for m in selected_modules)
+                save_checkpoint(
+                    f"Load upper ontology: {upper['name']} ({mod_names})"
+                )
+                s = ont.get_statistics()
+                st.session_state["_upper_onto_msg"] = (
+                    f"Loaded {upper['name']} ({mod_names})! "
+                    f"— {s['classes']} classes, {s['object_properties']} obj props, "
+                    f"{s['data_properties']} data props, {s['content_triples']} triples"
+                )
+            except Exception as e:
+                st.session_state["_upper_onto_err"] = (
+                    f"Error loading upper ontology: {str(e)}"
+                )
+
+        st.subheader("Upper Ontologies")
+        st.caption(
+            "Start from a professionally built upper ontology as a foundation. "
+            "Your domain classes extend these foundational concepts."
+        )
+
+        if "_upper_onto_msg" in st.session_state:
+            st.success(st.session_state.pop("_upper_onto_msg"))
+        if "_upper_onto_err" in st.session_state:
+            st.error(st.session_state.pop("_upper_onto_err"))
+
+        upper_names = get_upper_ontology_names()
+        selected_upper = st.selectbox("Select Upper Ontology", upper_names,
+                                      key="upper_ontology_select")
+
+        if selected_upper:
+            upper = get_upper_ontology(selected_upper)
+            st.write(f"**{upper['name']}** v{upper['version']}")
+            st.write(upper["description"])
+            st.caption(f"License: {upper['license']} — Attribution: {upper['attribution']}")
+            if upper.get("url"):
+                st.caption(f"More info: {upper['url']}")
+
+            st.write("**Modules:**")
+            for mod in upper["modules"]:
+                default_on = mod.get("required", False) or mod.get("default", False)
+                st.checkbox(
+                    f"**{mod['name']}** — {mod['description']}",
+                    value=default_on,
+                    disabled=mod.get("required", False),
+                    key=f"upper_mod_{mod['name']}",
+                )
+
+            st.radio(
+                "Apply Mode",
+                ["Merge into current", "Replace current"],
+                horizontal=True,
+                key="upper_apply_mode",
+            )
+
+            st.button("Load Upper Ontology", type="primary",
+                      key="apply_upper_ontology_btn",
+                      on_click=_on_load_upper_ontology, args=(upper,))
 
 
 def render_advanced():
@@ -2489,11 +2612,12 @@ def render_advanced():
     individuals = ont.get_individuals()
     ind_names = [i["name"] for i in individuals]
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "Class Expressions", "Property Chains", "Disjoint Union", "All Different", "Has Key"
-    ])
+    _adv_tab = st.segmented_control("Section", ["Class Expressions", "Property Chains", "Disjoint Union", "All Different", "Has Key"],
+                                    default="Class Expressions", key="adv_active_tab", label_visibility="collapsed")
+    if not _adv_tab:
+        _adv_tab = "Class Expressions"
 
-    with tab1:
+    if _adv_tab == "Class Expressions":
         st.subheader("Class Expressions")
         st.caption("Define complex class expressions using set operations")
 
@@ -2549,7 +2673,7 @@ def render_advanced():
                     else:
                         show_message("Please select at least one member!", "error")
 
-    with tab2:
+    if _adv_tab == "Property Chains":
         st.subheader("Property Chains")
         st.caption("Define property chain axioms (e.g., hasParent o hasBrother = hasUncle)")
 
@@ -2586,7 +2710,7 @@ def render_advanced():
                         show_message(f"Property chain added for {result_prop}", "success")
                         st.rerun()
 
-    with tab3:
+    if _adv_tab == "Disjoint Union":
         st.subheader("Disjoint Union")
         st.caption("Define a class as the disjoint union of other classes")
 
@@ -2624,7 +2748,7 @@ def render_advanced():
                         show_message(f"Disjoint union added for {parent_class}", "success")
                         st.rerun()
 
-    with tab4:
+    if _adv_tab == "All Different":
         st.subheader("All Different")
         st.caption("Declare that a set of individuals are all mutually different")
 
@@ -2656,7 +2780,7 @@ def render_advanced():
                         show_message("AllDifferent declaration added!", "success")
                         st.rerun()
 
-    with tab5:
+    if _adv_tab == "Has Key":
         st.subheader("Has Key")
         st.caption("Define key properties that uniquely identify instances of a class")
 
@@ -2699,9 +2823,12 @@ def render_validation():
 
     ont = st.session_state.ontology
 
-    tab1, tab2 = st.tabs(["Validation", "Reasoning"])
+    _val_tab = st.segmented_control("Section", ["Validation", "Reasoning"],
+                                    default="Validation", key="val_active_tab", label_visibility="collapsed")
+    if not _val_tab:
+        _val_tab = "Validation"
 
-    with tab1:
+    if _val_tab == "Validation":
         st.subheader("Ontology Validation")
 
         check_domain_range = st.checkbox(
@@ -2738,7 +2865,7 @@ def render_validation():
                     for issue in infos:
                         st.write(f"  - {issue['message']}")
 
-    with tab2:
+    if _val_tab == "Reasoning":
         st.subheader("Apply Reasoning")
 
         st.write("""
@@ -2781,9 +2908,12 @@ def render_visualization():
         st.info("No content to visualize. Add classes, properties, individuals, or SKOS concepts first.")
         return
 
-    tab1, tab2, tab3 = st.tabs(["Interactive Graph", "Class Hierarchy", "Statistics"])
+    _viz_tab = st.segmented_control("Section", ["Interactive Graph", "Class Hierarchy", "Statistics"],
+                                    default="Interactive Graph", key="viz_active_tab", label_visibility="collapsed")
+    if not _viz_tab:
+        _viz_tab = "Interactive Graph"
 
-    with tab1:
+    if _viz_tab == "Interactive Graph":
         # Row 1: entity type checkboxes + ind. edges + triples
         _has_skos = stats.get("concepts", 0) > 0
         _has_owl = stats["classes"] > 0 or stats["object_properties"] > 0 or stats["data_properties"] > 0
@@ -3389,7 +3519,7 @@ def render_visualization():
                     unsafe_allow_html=True
                 )
 
-    with tab2:
+    if _viz_tab == "Class Hierarchy":
         st.subheader("Class Hierarchy (Text)")
 
         if not classes:
@@ -3420,7 +3550,7 @@ def render_visualization():
             tree_text = build_tree_text(classes)
             st.code(tree_text, language=None)
 
-    with tab3:
+    if _viz_tab == "Statistics":
         st.subheader("Ontology Statistics")
 
         col1, col2 = st.columns(2)
@@ -3512,7 +3642,10 @@ def main():
         st.rerun()
 
     # Handle search navigation
-    nav_override = st.session_state.pop("search_navigate_to", None)
+    nav_override = None
+    if "search_navigate_to" in st.session_state:
+        nav_override = st.session_state.search_navigate_to
+        del st.session_state.search_navigate_to
     if nav_override and nav_override in pages:
         st.session_state["nav_radio"] = nav_override
     selection = st.sidebar.radio("Navigation", list(pages.keys()), key="nav_radio")
