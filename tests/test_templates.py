@@ -2,7 +2,9 @@
 
 import pytest
 from rdflib import Graph
-from templates import get_template_names, get_template, render_template
+from templates import (get_template_names, get_template, render_template,
+                       get_upper_ontology_names, get_upper_ontology,
+                       load_upper_ontology_module)
 from ontology_manager import OntologyManager
 
 
@@ -69,3 +71,54 @@ class TestTemplateApplication:
         assert len(schemes) >= 1
         concepts = om.get_concepts()
         assert len(concepts) >= 5
+
+
+class TestUpperOntologies:
+    def test_upper_ontology_names(self):
+        names = get_upper_ontology_names()
+        assert "gist (Semantic Arts)" in names
+
+    def test_get_upper_ontology(self):
+        upper = get_upper_ontology("gist (Semantic Arts)")
+        assert upper is not None
+        assert upper["version"] == "14.1.0"
+        assert len(upper["modules"]) == 4
+
+    def test_get_nonexistent_upper_ontology(self):
+        assert get_upper_ontology("Nonexistent") is None
+
+    def test_load_gist_core_module(self):
+        upper = get_upper_ontology("gist (Semantic Arts)")
+        core = next(m for m in upper["modules"] if m["name"] == "gistCore")
+        content = load_upper_ontology_module(core)
+        assert "@prefix gist:" in content
+        assert "owl:Class" in content
+
+    def test_gist_core_valid_turtle(self):
+        upper = get_upper_ontology("gist (Semantic Arts)")
+        core = next(m for m in upper["modules"] if m["name"] == "gistCore")
+        content = load_upper_ontology_module(core)
+        g = Graph()
+        g.parse(data=content, format="turtle")
+        assert len(g) > 100
+
+    def test_merge_gist_into_ontology(self):
+        om = OntologyManager(base_uri="http://test.org/myont#")
+        om.add_class("MyClass")
+        upper = get_upper_ontology("gist (Semantic Arts)")
+        for mod in upper["modules"]:
+            if mod.get("required") or mod.get("default"):
+                content = load_upper_ontology_module(mod)
+                om.merge_from_string(content, "turtle")
+        classes = [c["name"] for c in om.get_classes()]
+        assert "MyClass" in classes
+        assert "Organization" in classes
+        assert "Event" in classes
+        assert "Person" in classes
+        assert len(classes) > 90
+
+    def test_gist_has_required_module(self):
+        upper = get_upper_ontology("gist (Semantic Arts)")
+        required = [m for m in upper["modules"] if m.get("required")]
+        assert len(required) == 1
+        assert required[0]["name"] == "gistCore"
