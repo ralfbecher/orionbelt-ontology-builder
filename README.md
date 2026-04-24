@@ -7,7 +7,7 @@
 <p align="center"><strong>A browser-based ontology workbench built with Streamlit and rdflib</strong></p>
 
 [![GitHub stars](https://img.shields.io/github/stars/ralfbecher/orionbelt-ontology-builder?style=social)](https://github.com/ralfbecher/orionbelt-ontology-builder)
-[![Version 1.1.3](https://img.shields.io/badge/version-1.1.3-purple.svg)](https://github.com/ralfbecher/orionbelt-ontology-builder/releases)
+[![Version 1.2.0](https://img.shields.io/badge/version-1.2.0-purple.svg)](https://github.com/ralfbecher/orionbelt-ontology-builder/releases)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: BSL 1.1](https://img.shields.io/badge/License-BSL_1.1-orange.svg)](https://github.com/ralfbecher/orionbelt-ontology-builder/blob/main/LICENSE)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-FF4B4B.svg?logo=streamlit&logoColor=white)](https://streamlit.io)
@@ -72,6 +72,10 @@ A dedicated page for building controlled vocabularies:
 ### Templates
 
 Five starter templates you can merge into or replace your current ontology: Organization, Product Catalog, Event, Person/Contact, and SKOS Thesaurus. Each is a valid Turtle snippet with a preview before you apply it.
+
+### Upper Ontologies
+
+Start from a professionally built upper ontology instead of redefining foundational concepts for every project. Currently ships with [**gist**](https://www.semanticarts.com/gist/) by Semantic Arts — a minimalist upper ontology covering ~100 classes (Event, Person, Organization, Agreement, Specification, etc.) and ~100 properties. Select which modules to load (Core, RDFS Annotations, SubClass Assertions, Media Types) and merge or replace your current ontology.
 
 ### Import & export
 
