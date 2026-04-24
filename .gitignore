@@ -34,7 +34,7 @@ Thumbs.db
 *.owl
 *.rdf
 
-!samples/*.ttl
-!samples/*.owl
-!samples/*.rdf
+!samples/**/*.ttl
+!samples/**/*.owl
+!samples/**/*.rdf
 
