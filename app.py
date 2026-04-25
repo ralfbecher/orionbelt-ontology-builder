@@ -9,7 +9,7 @@ import traceback
 from datetime import datetime
 
 APP_NAME = "OrionBelt Ontology Builder"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
