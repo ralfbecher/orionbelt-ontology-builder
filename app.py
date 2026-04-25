@@ -3,18 +3,24 @@ OrionBelt Ontology Builder - A Streamlit application for building, editing,
 and managing OWL ontologies.
 """
 
+import logging
 import streamlit as st
 import traceback
 from datetime import datetime
 
+APP_NAME = "OrionBelt Ontology Builder"
 APP_VERSION = "1.2.0"
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.info(f"{APP_NAME} v{APP_VERSION}")
 
 GITHUB_ISSUES_URL = "https://github.com/ralfbecher/orionbelt-ontology-builder/issues"
 
 # Page configuration
 st.set_page_config(
-    page_title="OrionBelt Ontology Builder",
-    page_icon="🌐",
+    page_title=APP_NAME,
+    page_icon="favicon.png",
     layout="wide",
     initial_sidebar_state="expanded"
 )
