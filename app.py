@@ -13,7 +13,9 @@ APP_VERSION = "1.2.1"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logger.info(f"{APP_NAME} v{APP_VERSION}")
+if "app_started" not in st.session_state:
+    st.session_state.app_started = True
+    logger.info(f"{APP_NAME} v{APP_VERSION}")
 
 GITHUB_ISSUES_URL = "https://github.com/ralfbecher/orionbelt-ontology-builder/issues"
 
