@@ -15,12 +15,24 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #fff; }
 #legend .line { display: inline-block; width: 20px; height: 2px; vertical-align: middle; margin-right: 2px; }
 #legend .line.dashed { border-top: 2px dashed; height: 0; }
 #legend .line.solid { border-top: 2px solid; height: 0; }
+#download-btn {
+    position: absolute; top: 8px; right: 8px; z-index: 10;
+    width: 32px; height: 32px; border: none; border-radius: 6px;
+    background: rgba(255,255,255,0.92); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0.7; transition: opacity 0.2s;
+}
+#download-btn:hover { opacity: 1; }
+#download-btn svg { width: 18px; height: 18px; fill: #555; }
 </style>
 </head>
 <body>
 <div id="container" style="position: relative;">
     <div id="graph"></div>
     <div id="legend"></div>
+    <button id="download-btn" title="Download as PNG" style="display:none;" onclick="downloadGraph()">
+        <svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zm7-18L5.33 9h3.84v6h3.66V9h3.84L12 2z" transform="rotate(180 12 12)"/></svg>
+    </button>
 </div>
 <script>
 // Streamlit component communication
@@ -31,6 +43,15 @@ function sendToStreamlit(type, data) {
 var visLoaded = false;
 var pendingArgs = null;
 var network = null;
+
+function downloadGraph() {
+    if (!network) return;
+    var canvas = network.canvas.frame.canvas;
+    var a = document.createElement('a');
+    a.download = 'ontology-graph.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+}
 
 function renderGraph(args) {
     if (!visLoaded) { pendingArgs = args; return; }
@@ -51,6 +72,7 @@ function renderGraph(args) {
     var batchIters = Math.max(iters - 40, 80);
     options.physics.stabilization = { enabled: true, iterations: batchIters, updateInterval: 50 };
     network = new vis.Network(el, {nodes: nodes, edges: edges}, options);
+    document.getElementById('download-btn').style.display = 'flex';
     // After batch, let live physics run briefly for a short settle animation, then freeze.
     network.once('stabilizationIterationsDone', function() {
         setTimeout(function() { network.setOptions({ physics: { enabled: false } }); }, 500);
